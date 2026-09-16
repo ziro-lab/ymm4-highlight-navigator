@@ -29,6 +29,7 @@ internal static class Proof
     private static bool scheduled;
     private static string output = "";
     private static readonly List<object> assertions = [];
+    private static readonly HashSet<string> menuTrace = [];
     internal static void Schedule()
     {
         string? directory = Environment.GetEnvironmentVariable("NAV_NATIVE_OUTPUT");
@@ -50,6 +51,7 @@ internal static class Proof
                 if (main != null && active == null && !created) { created = true; main.GetType().GetMethod("CreateProject", Type.EmptyTypes)?.Invoke(main, null); }
                 if (main != null && active != null && !opened) opened = OpenTool(main);
                 var view = Application.Current.Windows.Cast<Window>().SelectMany(Descendants).OfType<NavigatorView>().FirstOrDefault();
+                if (ticks is 1 or 5 or 20 or 60 or 120 or 180) TraceStartup(ticks, opened, main, active);
                 if (view?.DataContext is NavigatorModel model && active != null)
                 {
                     var timeline = active.GetType().GetField("timeline", BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(active) as Timeline;
@@ -66,9 +68,33 @@ internal static class Proof
     }
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
     {
-        yield return root;
-        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
-            foreach (var child in Descendants(VisualTreeHelper.GetChild(root, i))) yield return child;
+        var pending = new Queue<DependencyObject>();
+        var seen = new HashSet<DependencyObject>(ReferenceEqualityComparer.Instance);
+        pending.Enqueue(root);
+        while (pending.TryDequeue(out var node))
+        {
+            if (!seen.Add(node)) continue;
+            if (seen.Count > 10000) throw new InvalidOperationException("Host tree exceeds diagnostic budget.");
+            yield return node;
+            if (node is Visual || node is System.Windows.Media.Media3D.Visual3D)
+                for (int i = 0; i < VisualTreeHelper.GetChildrenCount(node); i++) pending.Enqueue(VisualTreeHelper.GetChild(node, i));
+            foreach (var child in LogicalTreeHelper.GetChildren(node)) if (child is DependencyObject d) pending.Enqueue(d);
+        }
+    }
+    private static void TraceStartup(int ticks, bool opened, object? main, object? active)
+    {
+        var windows = Application.Current.Windows.Cast<Window>().ToArray();
+        var lines = new List<string> { $"tick={ticks} opened={opened} main={main?.GetType().FullName} active={active?.GetType().FullName}" };
+        foreach (var window in windows)
+        {
+            lines.Add($"WINDOW {window.GetType().FullName} title={window.Title} visible={window.IsVisible} dc={window.DataContext?.GetType().FullName}");
+            foreach (var element in Descendants(window).OfType<FrameworkElement>().Where(x => x.GetType().FullName?.Contains("Navigator", StringComparison.Ordinal) == true || x.DataContext?.GetType().FullName?.Contains("Navigator", StringComparison.Ordinal) == true).Take(30))
+                lines.Add($"VIEW {element.GetType().FullName} dc={element.DataContext?.GetType().FullName} typedView={element is NavigatorView} typedModel={element.DataContext is NavigatorModel} visible={element.IsVisible} loaded={element.IsLoaded} size={element.ActualWidth}x{element.ActualHeight}");
+        }
+        if (active != null)
+            lines.Add("ACTIVE_FIELDS " + string.Join(",", active.GetType().GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).Select(f => f.Name + ":" + f.FieldType.FullName)));
+        lines.Add("ASSEMBLIES " + string.Join(" | ", AppDomain.CurrentDomain.GetAssemblies().Where(a => a.GetName().Name?.Contains("Navigator", StringComparison.Ordinal) == true).Select(a => a.FullName + ":" + a.Location)));
+        File.AppendAllLines(Path.Combine(output, "startup.txt"), lines);
     }
     private static bool OpenTool(object main)
     {
@@ -77,6 +103,7 @@ internal static class Proof
             if (depth > 6) return false;
             var type = item.GetType();
             var header = type.GetProperty("Header")?.GetValue(item)?.ToString() ?? "";
+            if (menuTrace.Add(type.FullName + ":" + header)) File.AppendAllText(Path.Combine(output, "startup.txt"), "MENU " + type.FullName + ":" + header + "\n");
             if (header.Contains("YMM4見どころナビ", StringComparison.Ordinal) && type.GetProperty("Command")?.GetValue(item) is ICommand cmd)
             {
                 var parameter = type.GetProperty("CommandParameter")?.GetValue(item);
@@ -134,7 +161,6 @@ internal static class Proof
         model.Selected = null; model.Move(1);
         Check("next_jump_exact", model.Selected != null && timeline.CurrentFrame == model.Selected.Frame);
         var remembered = model.Selected!;
-        // Prove requery without an executable backend rather than merely observing an unchanged counter.
         File.Move(ffmpeg, ffmpeg + ".disabled");
         try
         {
@@ -160,7 +186,6 @@ internal static class Proof
         Check("stale_target_rejected_atomically", rejected && timeline.CurrentFrame == beforeFrame);
         adapter.Attach(null);
         Check("timeline_detach_invalidates", adapter.Snapshots.IsEmpty);
-        // Independent narrow layout fixture using the actual compiled product view.
         var narrow = new NavigatorView { DataContext = model, Width = 360, Height = 480 };
         narrow.Measure(new Size(360, 480)); narrow.Arrange(new Rect(0, 0, 360, 480)); narrow.UpdateLayout();
         bool Inside(string name)
@@ -181,5 +206,9 @@ internal static class Proof
         File.AppendAllText(Path.Combine(output, "assertions.txt"), $"ASSERT {(passed ? "PASS" : "FAIL")} {id}\n");
         if (!passed) throw new InvalidOperationException("Assertion failed: " + id);
     }
-    private static void Write(bool passed, string? error) => File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { schema = "navigator.native.v1", passed, checkout = Environment.GetEnvironmentVariable("GITHUB_SHA"), assertions, error }, new JsonSerializerOptions { WriteIndented = true }));
+    private static void Write(bool passed, string? error)
+    {
+        if (!passed && File.Exists(Path.Combine(output, "startup.txt"))) error += "\nSTARTUP\n" + File.ReadAllText(Path.Combine(output, "startup.txt"));
+        File.WriteAllText(Path.Combine(output, "result.json"), JsonSerializer.Serialize(new { schema = "navigator.native.v1", passed, checkout = Environment.GetEnvironmentVariable("GITHUB_SHA"), assertions, error }, new JsonSerializerOptions { WriteIndented = true }));
+    }
 }
