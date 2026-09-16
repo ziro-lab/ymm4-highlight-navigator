@@ -196,6 +196,10 @@ internal static class Proof
             model.Sensitivity = 1.5; await model.RequeryAsync();
             Check("sensitivity_without_decoder", model.Candidates.Count > 0);
             model.Sensitivity = 1; foreach (var p in model.Profiles) p.Enabled = true; await model.RequeryAsync();
+            await model.RequeryAsync(new CancellationToken(true));
+            Check("cancelled_query_not_old_success", model.Candidates.Count == 0 && !model.CandidateSummary.Contains("ヒット計", StringComparison.Ordinal));
+            await model.RequeryAsync();
+            Check("query_recovers_without_redecode", model.Candidates.Count > 0 && model.DecodedRangeCount == 1);
         }
         finally { File.Move(ffmpeg + ".disabled", ffmpeg); }
         Check("visited_survives_requery", model.Candidates.Any(c => c.TargetId == remembered.TargetId && c.Source == remembered.Source && c.Visited));
@@ -211,7 +215,8 @@ internal static class Proof
         adapter.Attach(null);
         Check("timeline_detach_invalidates", adapter.Snapshots.IsEmpty);
         var narrow = new NavigatorView { DataContext = model, Width = 360, Height = 480 };
-        narrow.Measure(new Size(360, 480)); narrow.Arrange(new Rect(0, 0, 360, 480)); narrow.UpdateLayout();
+        var captureSurface = new System.Windows.Controls.Border { Background = SystemColors.WindowBrush, Child = narrow, Width = 360, Height = 480 };
+        captureSurface.Measure(new Size(360, 480)); captureSurface.Arrange(new Rect(0, 0, 360, 480)); captureSurface.UpdateLayout();
         bool Inside(string name)
         {
             if (narrow.FindName(name) is not FrameworkElement control || control.ActualWidth <= 0 || control.ActualHeight <= 0) return false;
@@ -219,7 +224,7 @@ internal static class Proof
             return p.X >= 0 && p.Y >= 0 && p.X + control.ActualWidth <= narrow.ActualWidth + .5 && p.Y + control.ActualHeight <= narrow.ActualHeight + .5;
         }
         Check("narrow_primary_controls_contained", new[] { "CaptureButton", "AnalyzeButton", "PreviousButton", "NextButton", "CandidateList" }.All(Inside));
-        var bitmap = new RenderTargetBitmap(360, 480, 96, 96, PixelFormats.Pbgra32); bitmap.Render(narrow);
+        var bitmap = new RenderTargetBitmap(360, 480, 96, 96, PixelFormats.Pbgra32); bitmap.Render(captureSurface);
         using (var image = File.Create(Path.Combine(output, "navigator-360x480.png"))) { var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(bitmap)); png.Save(image); }
         File.WriteAllText(Path.Combine(output, "summary.json"), JsonSerializer.Serialize(new { fps, heartbeats, decodedRanges = model.DecodedRangeCount, candidates = model.Candidates.Count, counts = model.CandidateSummary, hostAssembly = typeof(VideoItem).Assembly.FullName, productHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(typeof(NavigatorPlugin).Assembly.Location))) }, new JsonSerializerOptions { WriteIndented = true }));
         model.Dispose(); Check("dispose_clears_targets", model.Targets.IsEmpty && model.Candidates.Count == 0);

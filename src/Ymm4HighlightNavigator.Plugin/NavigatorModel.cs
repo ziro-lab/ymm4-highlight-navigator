@@ -56,12 +56,16 @@ public sealed class NavigatorModel : NotifyModel, ITimelineToolViewModel, IToolV
 {
     private sealed record Analyzed(string SourceKey, FeatureTable Table);
     private sealed record QueryResult(TargetSnapshot Target, ReviewEpisode Episode);
+    private sealed class ForwardProgress(Action<AnalysisProgress> report) : IProgress<AnalysisProgress>
+    {
+        public void Report(AnalysisProgress value) => report(value);
+    }
     private readonly TargetAdapter adapter = new();
     private readonly List<Analyzed> analyzed = [];
     private readonly Dictionary<Guid, List<TimeRange>> visited = [];
     private CancellationTokenSource? analysisCancel, queryCancel;
     private int generation, queryGeneration;
-    private bool disposed, busy, querying;
+    private bool disposed, busy, querying, hasQueryResult;
     private double sensitivity = 1, progress;
     private string status = "YMM4で動画を選び、対象に追加してください。";
     private Candidate? selected;
@@ -73,12 +77,12 @@ public sealed class NavigatorModel : NotifyModel, ITimelineToolViewModel, IToolV
     public ImmutableArray<TargetSnapshot> Targets => adapter.Snapshots;
     public int DecodedRangeCount => analyzed.Count;
     public bool IsBusy { get => busy; private set { busy = value; Changed(); Changed(nameof(CanConfigure)); Commands(); } }
-    public bool IsQuerying { get => querying; private set { querying = value; Changed(); Commands(); } }
+    public bool IsQuerying { get => querying; private set { querying = value; Changed(); Changed(nameof(CandidateSummary)); Commands(); } }
     public bool CanConfigure => !IsBusy;
     public double Progress { get => progress; private set { progress = Math.Clamp(value, 0, 1); Changed(); } }
     public string Status { get => status; private set { status = value; Changed(); } }
     public string TargetSummary => $"対象 {Targets.Length}個";
-    public string CandidateSummary => $"候補 {Candidates.Count}件 / ヒット計 {hitTotal}";
+    public string CandidateSummary => IsQuerying ? "候補を更新中…" : hasQueryResult ? $"候補 {Candidates.Count}件 / ヒット計 {hitTotal}" : "候補は未計算です";
     public double Sensitivity { get => sensitivity; set { if (!double.IsFinite(value) || value < .25 || value > 2 || value == sensitivity) return; sensitivity = value; Changed(); _ = RequeryAsync(); } }
     public Candidate? Selected { get => selected; set { selected = value; Changed(); Commands(); } }
     public ICommand CaptureCommand { get; }
@@ -111,7 +115,7 @@ public sealed class NavigatorModel : NotifyModel, ITimelineToolViewModel, IToolV
         if (disposed) return;
         if (adapter.Attach(info.Timeline))
         {
-            generation++; Cancel(); analyzed.Clear(); visited.Clear(); Candidates.Clear(); Selected = null; hitTotal = 0;
+            generation++; Cancel(); analyzed.Clear(); visited.Clear(); Candidates.Clear(); Selected = null; hitTotal = 0; hasQueryResult = false;
             Status = "タイムラインが変わりました。動画を対象に追加してください。";
             Changed(nameof(TargetSummary)); Changed(nameof(CandidateSummary)); Commands();
         }
@@ -119,7 +123,7 @@ public sealed class NavigatorModel : NotifyModel, ITimelineToolViewModel, IToolV
     public void CaptureSelection()
     {
         if (disposed || IsBusy) throw new InvalidOperationException("解析を停止してから対象を変更してください。");
-        adapter.CaptureSelection(); generation++; queryCancel?.Cancel(); analyzed.Clear(); visited.Clear(); Candidates.Clear(); Selected = null; hitTotal = 0;
+        adapter.CaptureSelection(); generation++; queryCancel?.Cancel(); analyzed.Clear(); visited.Clear(); Candidates.Clear(); Selected = null; hitTotal = 0; hasQueryResult = false;
         foreach (var p in Profiles) p.Count = "";
         Status = "対象を固定しました。選択を変えても対象は変わりません。";
         Changed(nameof(TargetSummary)); Changed(nameof(CandidateSummary)); Commands();
@@ -141,21 +145,25 @@ public sealed class NavigatorModel : NotifyModel, ITimelineToolViewModel, IToolV
         int stamp = generation;
         queryCancel?.Cancel();
         analysisCancel = new(); var token = analysisCancel.Token;
-        analyzed.Clear(); Candidates.Clear(); Selected = null; hitTotal = 0; Changed(nameof(CandidateSummary));
+        analyzed.Clear(); Candidates.Clear(); Selected = null; hitTotal = 0; hasQueryResult = false; Changed(nameof(CandidateSummary));
+        foreach (var p in Profiles) p.Count = "未計算";
         IsBusy = true; Progress = 0; Status = "録画の特徴を解析しています。";
         // Build a NEW index, publish only after the complete transaction succeeds.
         try
         {
             var work = targets.GroupBy(t => t.SourceKey, StringComparer.OrdinalIgnoreCase)
                 .SelectMany(g => TimeRange.Union(g.Select(t => t.SourceRange)).Select(r => (Source: g.Key, Range: r))).ToArray();
-            var report = new Progress<AnalysisProgress>(p => { if (!disposed && stamp == generation && IsBusy) { Progress = p.Fraction; Status = p.Stage; } });
+            IProgress<AnalysisProgress> report = new Progress<AnalysisProgress>(p => { if (!disposed && stamp == generation && IsBusy) { Progress = p.Fraction; Status = p.Stage; } });
             var completed = await Task.Run(async () =>
             {
                 var rows = new List<Analyzed>();
-                foreach (var item in work)
+                for (int index = 0; index < work.Length; index++)
                 {
                     token.ThrowIfCancellationRequested();
-                    var pack = await backend.ExtractAsync(item.Source, item.Range.Start, item.Range.End, progress: report, token: token).ConfigureAwait(false);
+                    var item = work[index];
+                    int currentIndex = index;
+                    var rangeProgress = new ForwardProgress(p => report.Report(p with { Fraction = (currentIndex + p.Fraction) / work.Length }));
+                    var pack = await backend.ExtractAsync(item.Source, item.Range.Start, item.Range.End, progress: rangeProgress, token: token).ConfigureAwait(false);
                     rows.Add(new(item.Source, new FeatureTable(pack)));
                 }
                 return rows;
@@ -171,10 +179,10 @@ public sealed class NavigatorModel : NotifyModel, ITimelineToolViewModel, IToolV
         if (!disposed && stamp == generation) await RequeryAsync();
     }
 
-    public async Task RequeryAsync()
+    public async Task RequeryAsync(CancellationToken cancellationToken = default)
     {
         if (disposed || IsBusy || analyzed.Count == 0) return;
-        queryCancel?.Cancel(); queryCancel?.Dispose(); queryCancel = new(); var token = queryCancel.Token;
+        queryCancel?.Cancel(); queryCancel?.Dispose(); queryCancel = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken); var token = queryCancel.Token;
         int stamp = generation, q = ++queryGeneration;
         var sources = analyzed.ToArray(); var targets = Targets;
         var profiles = Profiles.Select(p => (p.Profile, p.Enabled)).ToArray(); double sens = Sensitivity;
@@ -224,12 +232,22 @@ public sealed class NavigatorModel : NotifyModel, ITimelineToolViewModel, IToolV
             Candidates.Clear(); foreach (var item in next.OrderBy(c => c.Frame).ThenBy(c => c.TargetId)) Candidates.Add(item);
             Selected = old == null ? null : Candidates.FirstOrDefault(c => c.TargetId == old.TargetId && c.Source == old.Source);
             hitTotal = profiles.Where(p => p.Enabled).Sum(p => result.counts[p.Profile.Id]);
+            hasQueryResult = true;
             foreach (var p in Profiles) p.Count = $"{result.counts[p.Profile.Id]}件" + (result.unavailable[p.Profile.Id] > 0 ? "（一部素材は非対応）" : "");
             Changed(nameof(CandidateSummary));
             Status = Candidates.Count == 0 ? "候補がありません。プロファイルをONにするか、感度を広げてください。" : "前・次で候補へ移動できます。";
         }
-        catch (OperationCanceledException) { }
-        catch (Exception ex) { if (!disposed && stamp == generation && q == queryGeneration) { Candidates.Clear(); Selected = null; hitTotal = 0; Changed(nameof(CandidateSummary)); Status = ex.GetBaseException().Message; } }
+        catch (OperationCanceledException)
+        {
+            if (!disposed && stamp == generation && q == queryGeneration)
+            {
+                Candidates.Clear(); Selected = null; hitTotal = 0; hasQueryResult = false;
+                foreach (var p in Profiles) p.Count = "未計算";
+                Changed(nameof(CandidateSummary));
+                Status = "候補の更新を中止しました。プロファイルか感度を変更すると再計算できます。";
+            }
+        }
+        catch (Exception ex) { if (!disposed && stamp == generation && q == queryGeneration) { Candidates.Clear(); Selected = null; hitTotal = 0; hasQueryResult = false; Changed(nameof(CandidateSummary)); Status = ex.GetBaseException().Message; } }
         finally { if (q == queryGeneration) IsQuerying = false; }
     }
 
