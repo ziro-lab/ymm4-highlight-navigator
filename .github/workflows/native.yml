@@ -2,7 +2,7 @@ name: Navigator native checkpoint
 on:
   workflow_dispatch:
   push:
-    branches: ['feature/w1-projection-spine']
+    branches: ['feature/w1-projection-spine', 'feature/use-ymm4-bundled-ffmpeg']
     paths:
       - 'src/Ymm4HighlightNavigator.Plugin/**'
       - 'tests/Ymm4HighlightNavigator.Plugin.Tests/**'
@@ -21,7 +21,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 1
-      - name: Prepare pinned host and generated media
+      - name: Prepare pinned host and generated media from YMM4 bundled FFmpeg
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
@@ -33,18 +33,19 @@ jobs:
           Expand-Archive ymm4.zip ymm4
           $exe=Get-ChildItem ymm4 -Recurse -Filter YukkuriMovieMaker.exe | Select-Object -First 1
           if(-not $exe){throw 'Host executable missing'}
-          "YMM4_DIR=$($exe.Directory.FullName)\" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
-          choco install ffmpeg --version=7.1.1 -y --no-progress
-          if($LASTEXITCODE -ne 0){throw 'Fixture FFmpeg installation blocked'}
-          $binary=Get-ChildItem C:/ProgramData/chocolatey/lib/ffmpeg -Filter ffmpeg.exe -Recurse | Select-Object -First 1
-          $probe=Get-ChildItem C:/ProgramData/chocolatey/lib/ffmpeg -Filter ffprobe.exe -Recurse | Select-Object -First 1
-          if(-not $binary -or -not $probe){throw 'Real backend files missing'}
-          "FFMPEG_EXE=$($binary.FullName)" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
-          "FFPROBE_EXE=$($probe.FullName)" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
-          python tools/fixtures/generate.py --ffmpeg $binary.FullName --output out/fixture/lossless.mkv
+          $host=$exe.Directory.FullName
+          $ffmpeg=Join-Path $host 'Resources\bin\x64\ffmpeg\ffmpeg.exe'
+          $ffprobe=Join-Path $host 'Resources\bin\x64\ffmpeg\ffprobe.exe'
+          if(-not(Test-Path $ffmpeg) -or -not(Test-Path $ffprobe)){throw 'Pinned YMM4 bundled FFmpeg/ffprobe missing'}
+          "YMM4_DIR=$host\" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "YMM4_BUNDLED_FFMPEG=$ffmpeg" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "YMM4_BUNDLED_FFPROBE=$ffprobe" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          New-Item -ItemType Directory -Force out/fixture | Out-Null
+          python tools/fixtures/generate.py --ffmpeg "$ffmpeg" --output out/fixture/lossless.mkv
           if($LASTEXITCODE -ne 0){throw 'Fixture generation failed'}
-          & $binary.FullName -nostdin -hide_banner -loglevel error -i out/fixture/lossless.mkv -c:v libx264 -preset ultrafast -pix_fmt yuv420p -c:a aac out/fixture/source.mp4
+          & $ffmpeg -nostdin -hide_banner -loglevel error -i out/fixture/lossless.mkv -c:v libx264 -preset ultrafast -pix_fmt yuv420p -c:a aac out/fixture/source.mp4
           if($LASTEXITCODE -ne 0){throw 'Host-compatible fixture failed'}
+          Get-FileHash $ffmpeg,$ffprobe -Algorithm SHA256 | Format-List | Out-File out/host-backend-hashes.txt
       - name: Build real distribution and separate proof assembly
         shell: pwsh
         run: |
@@ -56,21 +57,26 @@ jobs:
           $unexpected=Get-ChildItem out/distribution -Filter '*.dll' | Where-Object Name -notin @('Ymm4HighlightNavigator.Plugin.dll','Ymm4HighlightNavigator.Core.dll')
           if($unexpected){throw 'Host or unintended dependency leaked into distribution'}
           $dest=Join-Path $env:YMM4_DIR 'user/plugin/Ymm4HighlightNavigator'
-          New-Item -ItemType Directory -Force (Join-Path $dest 'tools') | Out-Null
+          New-Item -ItemType Directory -Force $dest | Out-Null
           Copy-Item out/distribution/*.dll $dest
           Copy-Item out/proof/Ymm4HighlightNavigator.Plugin.Tests.dll $dest
-          Copy-Item $env:FFMPEG_EXE (Join-Path $dest 'tools/ffmpeg.exe')
-          Copy-Item $env:FFPROBE_EXE (Join-Path $dest 'tools/ffprobe.exe')
+          if(Test-Path (Join-Path $dest 'tools')){throw 'Navigator must not install a private FFmpeg tools folder'}
           Get-FileHash out/distribution/*.dll -Algorithm SHA256 | Format-List | Out-File out/distribution-hashes.txt
       - name: Real YMM4 product regression
         shell: pwsh
         run: ./tests/Ymm4HighlightNavigator.Plugin.Tests/RunNative.ps1 -Ymm4Dir $env:YMM4_DIR -OutputDir (Join-Path $PWD 'out/evidence') -MediaPath (Join-Path $PWD 'out/fixture/source.mp4')
-      - name: Independent exact distribution hash gate
+      - name: Independent exact distribution and host-backend gate
         shell: pwsh
         run: |
           $r=Get-Content out/evidence/summary.json -Raw | ConvertFrom-Json
-          $expected=(Get-FileHash out/distribution/Ymm4HighlightNavigator.Plugin.dll -Algorithm SHA256).Hash
-          if($r.productHash -ne $expected){throw 'The native host did not test the distribution DLL'}
+          $expectedProduct=(Get-FileHash out/distribution/Ymm4HighlightNavigator.Plugin.dll -Algorithm SHA256).Hash
+          if($r.productHash -ne $expectedProduct){throw 'The native host did not test the distribution DLL'}
+          $expectedFfmpeg=(Resolve-Path $env:YMM4_BUNDLED_FFMPEG).Path
+          $expectedFfprobe=(Resolve-Path $env:YMM4_BUNDLED_FFPROBE).Path
+          if((Resolve-Path $r.ffmpegPath).Path -ne $expectedFfmpeg){throw 'Product did not resolve the pinned YMM4 bundled ffmpeg.exe'}
+          if((Resolve-Path $r.ffprobePath).Path -ne $expectedFfprobe){throw 'Product did not resolve the pinned YMM4 bundled ffprobe.exe'}
+          $pluginTools=Join-Path $env:YMM4_DIR 'user/plugin/Ymm4HighlightNavigator/tools'
+          if(Test-Path $pluginTools){throw 'Private backend copy unexpectedly exists'}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
@@ -80,6 +86,7 @@ jobs:
             out/evidence/
             out-build.txt
             out-proof-build.txt
+            out/host-backend-hashes.txt
             dotnet-sdks.txt
           if-no-files-found: error
           retention-days: 7
