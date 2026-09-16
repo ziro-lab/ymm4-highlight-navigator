@@ -41,6 +41,8 @@ jobs:
           "YMM4_BUNDLED_FFMPEG=$ffmpeg" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
           "YMM4_BUNDLED_FFPROBE=$ffprobe" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
           New-Item -ItemType Directory -Force out/fixture | Out-Null
+          & $ffmpeg -version | Out-File out/host-backend-version.txt
+          if($LASTEXITCODE -ne 0){throw 'Bundled backend version could not be recorded'}
           python tools/fixtures/generate.py --ffmpeg "$ffmpeg" --output out/fixture/source.mkv
           if($LASTEXITCODE -ne 0){throw 'Fixture generation failed'}
           Get-FileHash $ffmpeg,$ffprobe -Algorithm SHA256 | Format-List | Out-File out/host-backend-hashes.txt
@@ -90,6 +92,7 @@ jobs:
             out-build.txt
             out-proof-build.txt
             out/host-backend-hashes.txt
+            out/host-backend-version.txt
             dotnet-sdks.txt
           if-no-files-found: error
           retention-days: 7
