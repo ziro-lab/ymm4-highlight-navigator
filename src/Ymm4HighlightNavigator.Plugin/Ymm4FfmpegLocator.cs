@@ -1,6 +1,6 @@
 using System.IO;
+using System.Reflection;
 using Ymm4HighlightNavigator.Core;
-using YukkuriMovieMaker.Plugin.FileSource.FFmpeg;
 
 namespace Ymm4HighlightNavigator.Plugin;
 
@@ -8,28 +8,54 @@ public sealed record Ymm4FfmpegPaths(string FfmpegPath, string FfprobePath);
 
 /// <summary>
 /// Resolves the FFmpeg binaries owned by the current YMM4 host.
-/// No external PATH lookup, Plugin-private copy, or guessed YMM4-relative path is used.
+/// The optional FFmpeg host assembly is loaded lazily so a future dependency change can disable
+/// analysis with a user-facing message instead of preventing the whole Tool from loading.
 /// </summary>
 public static class Ymm4FfmpegLocator
 {
+    private const string AssemblyName = "YukkuriMovieMaker.Plugin.FileSource.FFmpeg";
+    private const string LocatorTypeName = "YukkuriMovieMaker.Plugin.FileSource.FFmpeg.FFmpegResourceLocator";
+
     public static Ymm4FfmpegPaths Resolve()
     {
-        string ffmpegDirectory = Path.GetFullPath(FFmpegResourceLocator.GetFFmpegDirectory());
-        string ffmpeg = Path.GetFullPath(FFmpegResourceLocator.GetFFmpegExePath());
-        string ffprobe = Path.GetFullPath(Path.Combine(ffmpegDirectory, "ffprobe.exe"));
+        try
+        {
+            var assembly = AppDomain.CurrentDomain.GetAssemblies()
+                .FirstOrDefault(x => StringComparer.Ordinal.Equals(x.GetName().Name, AssemblyName))
+                ?? Assembly.Load(new AssemblyName(AssemblyName));
+            var locator = assembly.GetType(LocatorTypeName, throwOnError: false)
+                ?? throw new TypeLoadException(LocatorTypeName);
 
-        if (!Directory.Exists(ffmpegDirectory))
-            throw new DirectoryNotFoundException("YMM4のFFmpegフォルダーを取得できませんでした。");
-        if (!File.Exists(ffmpeg))
-            throw new FileNotFoundException("YMM4同梱のffmpeg.exeが見つかりません。", ffmpeg);
-        if (!File.Exists(ffprobe))
-            throw new FileNotFoundException("YMM4同梱のffprobe.exeが見つかりません。", ffprobe);
+            string ffmpegDirectory = Path.GetFullPath(InvokeString(locator, "GetFFmpegDirectory"));
+            string ffmpeg = Path.GetFullPath(InvokeString(locator, "GetFFmpegExePath"));
+            string ffprobe = Path.GetFullPath(Path.Combine(ffmpegDirectory, "ffprobe.exe"));
 
-        string? actualFfmpegDirectory = Path.GetDirectoryName(ffmpeg);
-        if (actualFfmpegDirectory is null || !StringComparer.OrdinalIgnoreCase.Equals(Path.GetFullPath(actualFfmpegDirectory), ffmpegDirectory))
-            throw new InvalidDataException("YMM4のFFmpeg locatorが一貫しない場所を返しました。");
+            if (!Directory.Exists(ffmpegDirectory) || !File.Exists(ffmpeg) || !File.Exists(ffprobe))
+                throw new FileNotFoundException("YMM4 bundled FFmpeg capability is incomplete.");
 
-        return new(ffmpeg, ffprobe);
+            string? actualFfmpegDirectory = Path.GetDirectoryName(ffmpeg);
+            if (actualFfmpegDirectory is null || !StringComparer.OrdinalIgnoreCase.Equals(Path.GetFullPath(actualFfmpegDirectory), ffmpegDirectory))
+                throw new InvalidDataException("YMM4 FFmpeg locator returned inconsistent paths.");
+
+            return new(ffmpeg, ffprobe);
+        }
+        catch (Exception ex) when (ex is FileNotFoundException
+            or FileLoadException
+            or BadImageFormatException
+            or TypeLoadException
+            or MissingMemberException
+            or TargetInvocationException
+            or InvalidDataException)
+        {
+            throw new NotSupportedException("YMM4の更新でFFmpeg連携の依存関係が変更されたため、解析機能は現在使用できません。", ex);
+        }
+    }
+
+    private static string InvokeString(Type locator, string name)
+    {
+        var method = locator.GetMethod(name, BindingFlags.Public | BindingFlags.Static, Type.EmptyTypes)
+            ?? throw new MissingMethodException(locator.FullName, name);
+        return method.Invoke(null, null) as string ?? throw new InvalidDataException($"{name} returned no path.");
     }
 
     public static FfmpegBackend CreateBackend()
