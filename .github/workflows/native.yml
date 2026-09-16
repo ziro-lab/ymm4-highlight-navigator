@@ -33,11 +33,11 @@ jobs:
           Expand-Archive ymm4.zip ymm4
           $exe=Get-ChildItem ymm4 -Recurse -Filter YukkuriMovieMaker.exe | Select-Object -First 1
           if(-not $exe){throw 'Host executable missing'}
-          $host=$exe.Directory.FullName
-          $ffmpeg=Join-Path $host 'Resources\bin\x64\ffmpeg\ffmpeg.exe'
-          $ffprobe=Join-Path $host 'Resources\bin\x64\ffmpeg\ffprobe.exe'
+          $hostRoot=$exe.Directory.FullName
+          $ffmpeg=Join-Path $hostRoot 'Resources\bin\x64\ffmpeg\ffmpeg.exe'
+          $ffprobe=Join-Path $hostRoot 'Resources\bin\x64\ffmpeg\ffprobe.exe'
           if(-not(Test-Path $ffmpeg) -or -not(Test-Path $ffprobe)){throw 'Pinned YMM4 bundled FFmpeg/ffprobe missing'}
-          "YMM4_DIR=$host\" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "YMM4_DIR=$hostRoot\" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
           "YMM4_BUNDLED_FFMPEG=$ffmpeg" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
           "YMM4_BUNDLED_FFPROBE=$ffprobe" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
           New-Item -ItemType Directory -Force out/fixture | Out-Null
