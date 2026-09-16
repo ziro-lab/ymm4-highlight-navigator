@@ -63,12 +63,18 @@ YMM4自体について未知の挙動が出た場合、このRepositoryで推測
 ## Current authority
 
 - [設計正本 `docs/DESIGN.md`](docs/DESIGN.md) — v0.4.0 Learning Corpus / Multi-Profile / Reverse Classification
+- [実装開始点 `docs/IMPLEMENTATION_KICKOFF.md`](docs/IMPLEMENTATION_KICKOFF.md)
 - [実装Roadmap `docs/ROADMAP.md`](docs/ROADMAP.md)
 - [開発運用 `docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)
 - [Native検証方針 `docs/NATIVE_VALIDATION.md`](docs/NATIVE_VALIDATION.md)
 - [Lab evidence索引 `docs/LAB_REFERENCES.md`](docs/LAB_REFERENCES.md)
+- [W1 Lab Question Set `docs/W1_LAB_QUESTIONS.md`](docs/W1_LAB_QUESTIONS.md)
+- [W2 Feature Engine Kickoff `docs/W2_KICKOFF.md`](docs/W2_KICKOFF.md)
+- [初期並列lane `docs/BRANCHES.md`](docs/BRANCHES.md)
 
 実装時の優先順位は、ユーザーのCurrent Goal / Material Decision → `docs/DESIGN.md` → LabのCurrent Evidence → 実装都合、の順です。
+
+初期laneは `feature/w1-projection-spine` と `feature/w2-feature-engine`。W1はYMM4 host integration、W2はYMM4非依存Feature Engineとして並行できます。
 
 ## Development posture
 
@@ -79,3 +85,4 @@ YMM4自体について未知の挙動が出た場合、このRepositoryで推測
 - 元動画・ymmpを通常Reviewで破壊変更しない。
 - 教材動画を消費削除する場合は、明示したInboxだけを対象にし、Feature Pack確定・reload検証・sample登録commit後だけ削除する。
 - YMM4 host factの調査はLabへ寄せ、Product Actionを事実探索に浪費しない。
+- W1 integration codeが存在しない現在はnative workflowを置かない。製品claimを証明できる段階でのみNavigator側Actionsを追加する。
