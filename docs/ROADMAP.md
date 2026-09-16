@@ -1,247 +1,116 @@
 # Implementation Roadmap — v0.4
 
-Authority: `docs/DESIGN.md` §17を実装向けに展開したもの。GoalやMaterial Decisionを変更するRoadmapではない。
+Authority: [DESIGN.md](DESIGN.md) §17。Goal/Scopeを変更せず実装の段階を追う。正確なrun/source/未証明範囲は [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)。
 
 ## Current state
 
-**BOOTSTRAP READY / IMPLEMENTATION NOT STARTED**
+**FIRST WORKING CHECKPOINT / NOT A COMPLETE RELEASE**
 
-- v0.4.0 design authority: ready
-- repository/lab boundary: defined
-- native validation policy: defined
-- Recording Archive Lab timing evidence: adopted for W1 where applicable
-- product code: not started
-- active product native workflow: intentionally not created yet（W1 integration codeが無い状態でActionを回さないため）
+- W1 basic Target/Projection/Review spine: implemented, product native24 assertions PASS.
+- W2 CPU primitive/Pack/pure engine: implemented, Core27 cases PASS.
+- W4 no-redecode multi-profile runtime: basic path implemented with generic seed Profiles.
+- W3 Corpus intake, W5 reverse classification, W6 refinement: not implemented yet.
+- W7 GPU/performance/real-game quality/distribution/user acceptance: open.
+
+W1 native readiness does not mean all project lifecycle/physical input/decoder correspondence is proved. W2 Pack serialization does not mean a persistent Corpus manager already exists.
 
 ## Dependency overview
 
 ```text
-W1 Target / Projection Spine ─────┐
-                                 ├─> W4 Multi-Profile Runtime Review ─┐
-W2 Shared Feature Engine ─┬─> W3 Learning Corpus Intake ─> W5 Reverse Classification ─┤
-                          │                                             ↓              │
-                          └──────────────────────────────────────> W6 Profile Refinement ┘
-                                                                 ↓
-                                                           W7 First Value / Distribution
+W1 Target / Projection ────────────────────┐
+                                           ├─> W4 Multi-Profile Runtime Review ─┐
+W2 Shared Feature Engine ─> W3 Corpus ─> W5 Reverse Classification ─> W6 Refinement
+                                           └───────────────────────────────────┤
+                                                                  W7 First Value / Distribution
 ```
 
-W1のLab確認とW2のpure implementationは並行可能。
-
----
+W1/W2の最初の並列作業は成立した。次の主工程はW3。作成済みCore/Adapter/fixturesを再実装しない。
 
 ## W1 — YMM4 Target / Projection Spine
 
-**Purpose:** YMM4上の対象Video ItemとSource timeをsnapshotし、dummy candidateを正しいTimeline occurrenceへJumpできる最小spineを作る。
+**Purpose:** explicit Target Setからdummy/real-feature candidateを正しいTimeline occurrenceへJumpする。
 
-### Adopted before implementation
+**Implemented baseline:**
+- public Timeline/FPS/selectionとsession-local identity;
+- immutable target snapshot、atomic capture、stale target rejection;
+- version-pinned PlaybackRateMap getterをTargetAdapterへ隔離;
+- source-range union、独立occurrence、半開区間、integer seek;
+- 日本語ToolとPrev/Next/List。
 
-Recording ArchiveのLab evidence chainから、YMM4 Lite v4.56.1.0について次をW1前提として採用する。詳細Authorityは `docs/LAB_REFERENCES.md`。
+**Adopted host facts:** PlaybackRate2を使用、offsetを倍率へ含めないnative map、50/100/200%、inverse end exclusion。ContentLengthはconsumed durationへ使わない。Lab索引を参照し再発見しない。
 
-- current rate surfaceは `PlaybackRate2`。legacy `BaseItem.PlaybackRate` は使用しない;
-- native source-time authorityは `PlaybackRateMap`;
-- constant positive 50 / 100 / 200%では `sourceTime = ContentOffset + itemTime * rate / 100`;
-- `ContentOffset`自体へrateを掛けない;
-- inverse lookupはtested caseでhalf-open `[0, Length)`;
-- `ContentLength`をSource Range consumed lengthの推定へ使わない。
+**Acceptance retained:** trim/nonzero start/supported constant rate、same-source multiple occurrences、selection固定、stale誤投影拒否、private依存の隔離。
 
-これらを再発見するためのLab Actionは回さない。
-
-**Remaining Lab-first questions:**
-
-- selected/target VideoItemをexplicit Target Setへ固定するstable-enough identity / occurrence identity;
-- Timeline identity / Timeline FPS authority;
-- Timeline absolute frame -> item-local timeのboundary / rounding;
-- Tool PluginからTimeline seek/jumpする最小surface;
-- selection変更後もTarget Setを固定し、project/scene lifecycleでstale identityを検出する境界;
-- public/private/reflection boundary。
-
-既存Lab evidenceで足りるClaimは再利用し、不足ClaimだけProbeする。
-
-**Product implementation:**
-
-- narrow YMM4 Target Adapter;
-- immutable target snapshot;
-- `PlaybackRateMap` accessをTarget Adapter内へversion-pinned boundaryとして隔離;
-- Source Range Planner skeleton（`ContentLength`依存禁止）;
-- dummy Source Episode -> Item occurrence projection;
-- Review Navigator minimal Prev/Next/Jump spine。
-
-**Exit:**
-
-- same source / multiple occurrenceを含むfixtureでsource-time -> timeline mappingが再現可能;
-- trim / nonzero start / supported positive constant `PlaybackRate2`でJump一致;
-- item end boundaryでoff-by-one / inverse-end誤投影がない;
-- Selection変更で既存Target Setが黙って変わらない;
-- stale Targetを別Itemへ誤投影しない;
-- private/reflection dependencyがAdapter外へ漏れない。
-
-**Action budget:** Labで残存host factだけ確定してから、Navigator側native smokeはExit claimだけを確認する。`PlaybackRate2` / `PlaybackRateMap`の既知behavior確認だけの重複Actionは作らない。
-
----
+**Remaining:** broader project reload/scene switch/Undo lifecycle、背景処理中の切替、decoded frame/physical inputの追加確認。基本W1 PASSとは別に追う。
 
 ## W2 — Shared Feature Engine
 
-**Purpose:** Runtime長尺録画とLearning clipの両方が同じprimitive Feature schemaを生成し、同じProfile evaluatorへ入る基盤を作る。
+**Purpose:** RuntimeとLearningが同じsemantic前のprimitive/schemaを使う。
 
-**Start pure:**
+**Implemented:** FFmpeg子processのCPU経路、generated media、visual/audio primitives、empirical salience、versioned FeaturePackと検証付きPackStore、欠損featureの非互換判定。詳細は [FEATURE_FORMAT.md](FEATURE_FORMAT.md)。
 
-- FFmpeg child process abstraction;
-- deterministic media fixture generator;
-- visual/audio primitive extraction;
-- source-adaptive normalization;
-- schema/version model;
-- Session Feature Index writer/reader;
-- Learning Feature Pack writer/reader。
+**Acceptance retained:** serialize/reload後の値/schema/time、同じevaluator入力、backend failure/cancelの分離、サイズ/速度を実測できること。
 
-**Initial probe defaults:** `docs/DESIGN.md` §11。数値は固定RequirementではなくProbe default。
+**Remaining:** 長尺/multiple-sourceの実測、容量/メモリ最適化、GPU capability/resize/fallback、必要ならMAD/IQRを含むnormalization比較。現行の経験的percentileは最初の実装で、DESIGNの初期候補を最適値として確定したものではない。
 
-**Exit:**
+**Budget:** 数学/serializationはLinux pure tests。GPU/codec/host負荷は対応するcheckpointだけ。
 
-- Runtime IndexとLearning Packから同じProfile evaluatorへ入力できる;
-- Pack reload後もprimitive values/metadata/schemaが一致;
-- cancel/backend failureがhost processを巻き込まない設計境界がある;
-- performance/size measurementを取れる。
+## W3 — Learning Corpus Intake — NEXT
 
-**Action budget:** Feature math/serializationはpure tests。GPU/codec/backendとYMM4 background integrationだけ必要時native。
+**Purpose:** 人間分類FolderをbatchでPackと分類membershipへ取り込み、元動画なしでCorpusを再利用する。
 
----
+- folder/group/profile preview、一括取込;
+- fingerprint/dedupe、複数positive membership、provenance;
+- Pack persist/reload検証 + sample登録commit;
+- incompatible schemaとpartial/cancel/errorを区別;
+- 非破壊Importを先に成立;
+- consumptive Inboxは所有権確認と確定後削除を別transaction/negative testsで実装。
 
-## W3 — Learning Corpus Intake
+**Exit:** 少数X4分類Folderを一括取込、元動画を外してCorpus reload/replay、重複取込安全、削除ONでも未確定/失敗source保持、毎動画metadata入力なし。
 
-**Purpose:** 人間分類FolderをbatchでPack化し、元動画なしでpersistent Corpusを再利用できる状態にする。
-
-**Implementation:**
-
-- folder/group/profile intake preview;
-- batch import;
-- positive membership relation;
-- sample fingerprint / dedupe;
-- Feature Pack persist + reload validation;
-- consumptive Inbox transaction boundary;
-- source deletion only after verified commit;
-- Partial/Error/Cancel preservation;
-- schema compatibility reporting。
-
-**Exit:**
-
-- `X4/戦闘` 等の少数Folderを一括Importできる;
-- source videoを外してもCorpus reload/replay可能;
-- duplicate importが安全;
-- deletion ONでもfailed/uncommitted sourceは残る;
-- per-video metadata入力を要求しない。
-
-**Action budget:** 原則pure/integration tests。YMM4 host不要。
-
----
+**Budget:** pure/integration中心。Folder処理や学習だけの変更でnative YMM4を起動しない。
 
 ## W4 — Multi-Profile Runtime Review
 
-**Purpose:** 同じSession Feature Indexへ複数Profileを独立適用し、HitをUnionして重複だけまとめ、YMM4上で高速巡回する。
+**Implemented baseline:** Profile evaluator、per-Profile hit、OR/Union、overlap merge/attribution、unique candidate vs hit total、感度変更とON/OFFのno-redecode、Timeline順Prev/Next/List。query中止を古い成功値/0件へ偽装しない。
 
-**Implementation:**
+**Acceptance retained:** 合成fixture30+10=40hits、重複時uniqueだけ減る、別Item occurrence維持、host Jump成立。
 
-- Profile evaluator;
-- per-Profile hit sets;
-- OR/Union;
-- overlap/nearby merge;
-- attribution preservation;
-- unique candidate count vs hit total;
-- Global Sensitivity;
-- no-redecode requery;
-- Timeline projection / Prev / Next / List。
-
-**Exit:**
-
-- 例 `戦闘30 + ステーション10` のraw hit total 40を保持;
-- overlap時はReview candidate数だけ減り、attributionは残る;
-- Profile ON/OFF / sensitivity変更で再Decodeしない;
-- Timeline順ReviewとJumpがnative hostで成立。
-
-**Action budget:** Union/Merge/Profile evaluatorはpure。YMM4 Jump/UI integrationのみproduct native smoke。
-
----
+**Remaining:** Learningで作成したProfileを接続、Review Preset/設定の永続化、実長尺query latency、広いreview lifecycle/UX。汎用seedを学習済みゲームDetectorと見なさない。
 
 ## W5 — Reverse Classification / Hard Example
 
-**Purpose:** Human-labeled sampleをCURRENT frozen Profilesで評価し、現Profileが説明できない教材を優先できるようにする。
+**Purpose:** human-labeled sampleをCURRENT frozen Profilesで評価し、説明不足の教材を優先。
 
-**Implementation:**
+- expected-profile gap、他Profileへの一致、novelty、invalid/low-informationの区別;
+- Version/revision付きranking;
+- 一致度を確率/正答率として表示しない;
+- 自動relabelling禁止。
 
-- frozen Profile revision evaluation;
-- expected-profile gap;
-- competing-profile match;
-- novelty vs existing positive Corpus;
-- invalid/low-information penalty;
-- Hard Example ranking;
-- score UI semantics = `一致度` / `近いProfile`、確率表示禁止。
+**Exit:** 期待Profileで拾えないsampleを再現可能に抽出、human label保持、評価したrevisionが追える。multi-labelの正当な同時一致だけを誤分類にしない。
 
-**Exit:**
-
-- Human label `戦闘` なのにcurrent戦闘Profileで弱いsampleを再現可能に抽出;
-- Human labelは自動変更されない;
-- ranking input/outputがVersion/revisionと結びつく。
-
-**Action budget:** pure Corpus/Profile tests only。
-
----
+**Budget:** pure Corpus/Profile tests。
 
 ## W6 — Profile Refinement / Regression
 
-**Purpose:** Commonality + Contrast + Hard Exampleから改善Candidateを作り、既存Corpusを壊さず新revisionへ反映する。
+**Purpose:** Commonality/Contrast/Hard Exampleから改善候補を作り、明示反映。
 
-**Implementation:**
+- 他Profile corpusをhard-negativeとみなさないContrast;
+- 候補生成、Corpus replay、既存positive回帰/過剰hit/query costの検査;
+- preview、explicit apply、新revision、rollback。
 
-- commonality ranking;
-- cross-profile contrast without hard-negative assumption;
-- candidate Profile update;
-- full Corpus replay;
-- regression/hit-explosion/query-cost checks;
-- preview;
-- explicit apply;
-- revision history / immediate rollback。
-
-**Exit:**
-
-- Hard Example coverageが改善;
-- existing positive coverageへMaterial regressionなし;
-- cross-profile hit explosionを可視化/guard;
-- silent updateなし;
-- previous revisionへ戻せる。
-
-**Action budget:** pure tests。Profile algorithm変更だけでnative YMM4 Actionを回さない。
-
----
+**Exit:** Hard Example coverage改善、既存positiveへ大きな回帰なし、同時一致を壊さずhit explosionを検出、silent updateなし、直前版へ戻せる。Corpus上の回帰確認と未見録画上の性能評価は分ける。
 
 ## W7 — First Value / Distribution
 
-**Purpose:** 実際のYMM4編集環境でFirst Valueを通し、配布可能なPlugin Candidateにする。
+**Purpose:** 実YMM4編集環境の価値と通常配布を成立させる。
 
-**Acceptance layers:**
+**Exit retained:** X4 Profile複数巡回、raw-video-free learning、background/progress/cancel、supported GPU + software fallback、安定した `.ymme` 内部root、配布backend条件、独立release evidence validator、通常導入とユーザーacceptance。
 
-1. product functional integration;
-2. UI/UX acceptance;
-3. package/install/upgrade proof;
-4. real-user hands-on acceptance。
-
-**Exit:**
-
-- X4 Profile Groupで複数Profileを高速巡回;
-- raw-video-free Learning Corpusを維持;
-- background analysis / progress / cancel;
-- supported環境でGPU path + software fallback;
-- stable `.ymme` install root / compact distribution;
-- release evidenceを独立consumerで検証;
-- 実YMM4で通常導入して使える。
+Functional/native、UIUX、package/install/upgrade、human acceptanceを別Claimとして確認。現行DLL artifactは一般配布版ではない。
 
 Goal到達後、他GenreやHeavy Detectorへ自動拡張しない。
 
----
+## Next execution
 
-## First implementation target
-
-次に着手する標準順は:
-
-1. `LAB_REFERENCES.md` のADOPTED timing Claimを実装前提として読む;
-2. W1の残存Claim（Target identity / Timeline frame rounding / seek-jump）だけLabへ最小Probe;
-3. 同時にW2のYMM4非依存Feature schema / fixture skeletonを開始;
-4. W1 native Exitが通った時点でNavigator product native workflowを追加。
+[IMPLEMENTATION_KICKOFF.md](IMPLEMENTATION_KICKOFF.md) に従いW3を追加し、その後W5/W6を接続。host未知事実だけをLabへ戻す。実録画やCorpus、第三者host/backend binaryはrepoへcommitしない。
