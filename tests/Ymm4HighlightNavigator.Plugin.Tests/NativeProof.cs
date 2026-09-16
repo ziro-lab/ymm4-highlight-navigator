@@ -146,8 +146,12 @@ internal static class Proof
     {
         Check("real_product_tool", model.CaptureCommand.CanExecute(null));
         string media = Environment.GetEnvironmentVariable("NAV_NATIVE_MEDIA") ?? throw new InvalidOperationException("No fixture.");
-        string tools = Path.Combine(Path.GetDirectoryName(typeof(NavigatorPlugin).Assembly.Location)!, "tools");
-        string ffmpeg = Path.Combine(tools, "ffmpeg.exe"), ffprobe = Path.Combine(tools, "ffprobe.exe");
+        var bundled = Ymm4FfmpegLocator.Resolve();
+        string ffmpeg = bundled.FfmpegPath, ffprobe = bundled.FfprobePath;
+        string pluginDirectory = Path.GetFullPath(Path.GetDirectoryName(typeof(NavigatorPlugin).Assembly.Location)!);
+        Check("ymm4_bundled_ffmpeg_resolved", File.Exists(ffmpeg));
+        Check("ymm4_bundled_ffprobe_resolved", File.Exists(ffprobe) && StringComparer.OrdinalIgnoreCase.Equals(Path.GetDirectoryName(ffmpeg), Path.GetDirectoryName(ffprobe)));
+        Check("no_plugin_private_backend_copy", !ffmpeg.StartsWith(pluginDirectory + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) && !ffprobe.StartsWith(pluginDirectory + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
         string beforeHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(media)));
         int fps = timeline.VideoInfo.FPS;
         var a = new VideoItem { FilePath = media, Frame = 137, Length = 2 * fps, Layer = 1, ContentOffset = TimeSpan.FromSeconds(1), Remark = "NAV_PROOF_A" };
@@ -176,7 +180,7 @@ internal static class Proof
         var heartbeat = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(20) };
         heartbeat.Tick += (_, _) => heartbeats++;
         heartbeat.Start();
-        try { await model.AnalyzeAsync(new(ffmpeg, ffprobe)); }
+        try { await model.AnalyzeAsync(Ymm4FfmpegLocator.CreateBackend()); }
         finally { heartbeat.Stop(); }
         Check("background_ui_responsive", heartbeats > 0);
         Check("overlap_decoded_once", model.DecodedRangeCount == 1);
@@ -185,6 +189,7 @@ internal static class Proof
         model.Selected = null; model.Move(1);
         Check("next_jump_exact", model.Selected != null && timeline.CurrentFrame == model.Selected.Frame);
         var remembered = model.Selected!;
+        // This is a disposable CI host: temporarily hide the bundled executable to prove that re-query never decodes.
         File.Move(ffmpeg, ffmpeg + ".disabled");
         try
         {
@@ -226,7 +231,7 @@ internal static class Proof
         Check("narrow_primary_controls_contained", new[] { "CaptureButton", "AnalyzeButton", "PreviousButton", "NextButton", "CandidateList" }.All(Inside));
         var bitmap = new RenderTargetBitmap(360, 480, 96, 96, PixelFormats.Pbgra32); bitmap.Render(captureSurface);
         using (var image = File.Create(Path.Combine(output, "navigator-360x480.png"))) { var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(bitmap)); png.Save(image); }
-        File.WriteAllText(Path.Combine(output, "summary.json"), JsonSerializer.Serialize(new { fps, heartbeats, decodedRanges = model.DecodedRangeCount, candidates = model.Candidates.Count, counts = model.CandidateSummary, hostAssembly = typeof(VideoItem).Assembly.FullName, productHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(typeof(NavigatorPlugin).Assembly.Location))) }, new JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(Path.Combine(output, "summary.json"), JsonSerializer.Serialize(new { fps, heartbeats, decodedRanges = model.DecodedRangeCount, candidates = model.Candidates.Count, counts = model.CandidateSummary, ffmpegPath = ffmpeg, ffprobePath = ffprobe, hostAssembly = typeof(VideoItem).Assembly.FullName, productHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(typeof(NavigatorPlugin).Assembly.Location))) }, new JsonSerializerOptions { WriteIndented = true }));
         model.Dispose(); Check("dispose_clears_targets", model.Targets.IsEmpty && model.Candidates.Count == 0);
     }
     private static void Check(string id, bool passed)

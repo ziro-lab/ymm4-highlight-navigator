@@ -38,12 +38,12 @@ try {
  Get-Content $result
  $r=Get-Content -Raw $result | ConvertFrom-Json
  if($r.schema -ne 'navigator.native.v1' -or $r.passed -cne $true -or $r.checkout -ne $env:GITHUB_SHA -or $r.error){throw 'Native result identity/status rejected.'}
- $required=@('real_product_tool','capture_two_occurrences','same_source_different_rates','native_map_fractional_projection','exclusive_end_no_jump','selection_independent_targets','empty_capture_atomic','background_ui_responsive','overlap_decoded_once','source_to_occurrences','chronological_queue','next_jump_exact','all_profiles_off','toggle_without_decoder','sensitivity_without_decoder','cancelled_query_not_old_success','query_recovers_without_redecode','visited_survives_requery','item_state_unchanged','source_bytes_unchanged','stale_target_rejected_atomically','timeline_detach_invalidates','narrow_primary_controls_contained','dispose_clears_targets')
+ $required=@('real_product_tool','ymm4_bundled_ffmpeg_resolved','ymm4_bundled_ffprobe_resolved','no_plugin_private_backend_copy','capture_two_occurrences','same_source_different_rates','native_map_fractional_projection','exclusive_end_no_jump','selection_independent_targets','empty_capture_atomic','background_ui_responsive','overlap_decoded_once','source_to_occurrences','chronological_queue','next_jump_exact','all_profiles_off','toggle_without_decoder','sensitivity_without_decoder','cancelled_query_not_old_success','query_recovers_without_redecode','visited_survives_requery','item_state_unchanged','source_bytes_unchanged','stale_target_rejected_atomically','timeline_detach_invalidates','narrow_primary_controls_contained','dispose_clears_targets')
  if($r.assertions.Count -ne $required.Count){throw 'Wrong native assertion count.'}
  foreach($id in $required){$found=@($r.assertions|Where-Object id -eq $id); if($found.Count -ne 1 -or $found[0].passed -cne $true){throw "Missing/failed assertion: $id"}}
  Get-Content (Join-Path $OutputDir 'summary.json')
  Get-Content (Join-Path $OutputDir 'assertions.txt')
- Write-Output 'PASS_NAVIGATOR_PRODUCT: 24 independent assertions'
+ Write-Output 'PASS_NAVIGATOR_PRODUCT: 27 independent assertions'
 } finally {
  if(-not $p.HasExited){Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue}
  Remove-Item Env:NAV_NATIVE_OUTPUT,Env:NAV_NATIVE_MEDIA -ErrorAction SilentlyContinue

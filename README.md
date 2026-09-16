@@ -12,6 +12,7 @@ YukkuriMovieMaker4（YMM4）の長尺録画から軽量な映像・音声特徴�
 - 複数プロファイルの独立評価、OR統合、重複区間の整理、帰属情報を残した時系列候補。
 - プロファイルON/OFFと感度変更時は動画を再Decodeせず再検索。
 - 日本語の対象指定・解析・中止・前／次・候補一覧。
+- 解析backendはPluginへFFmpegを同梱せず、YMM4自身の公開 `FFmpegResourceLocator` から同梱 `ffmpeg.exe` / `ffprobe.exe` を解決する。
 
 現在の初期プロファイルは **映像の急変／音の強い場面／明るい場面** という汎用条件です。「戦闘」「ステーション」を学習済みと偽って表示しません。人間分類フォルダからのCorpus登録、逆分類、改善候補の反映は次の工程です。
 
@@ -29,7 +30,8 @@ X4は最初の検証対象・Profile Groupであり、製品の対応範囲をX4
 
 - Core: .NET 10、YMM4非依存。`dotnet run --project tests/Ymm4HighlightNavigator.Core.Tests -c Release -- --out out/core-tests` でpureケースを実行。実FFmpegケースの実行方法は `.github/workflows/core.yml` を参照。証拠出力先は毎回空の専用ディレクトリを使う。
 - Plugin: YMM4 Lite 4.56.1.0を対象に、`YMM4DirPath`を渡してビルド。起動や回帰テストは `.github/workflows/native.yml`。実行条件・結果はチェックポイントを参照。
-- FFmpegの通常配布・ライセンス／更新方針と `.ymme` は未完了。Actions成果物のDLLだけを完成済みインストーラーとして扱わない。テストは一時hostへbackendを配置するが、そのbinaryは成果物に含めない。
+- YMM4 Lite 4.56.1.0では `Resources\bin\x64\ffmpeg\` の同梱backendを公開Locator経由で利用することをLabと製品native testの双方で確認済み。Navigator独自のFFmpeg copy、PATH探索、別インストールは不要。対応YMM4版を上げるときはLocatorとsibling `ffprobe.exe` を再検証する。
+- `.ymme` の通常導入、upgrade、実利用acceptanceは未完了。Actions成果物のDLLを完成済みインストーラーとして扱わない。
 - この実装段階には入力動画の削除機能を入れていない。Pack保存成功だけで削除を許可しない。
 
 ## Repository境界

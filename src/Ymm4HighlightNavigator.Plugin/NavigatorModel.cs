@@ -132,8 +132,7 @@ public sealed class NavigatorModel : NotifyModel, ITimelineToolViewModel, IToolV
     {
         try
         {
-            string tools = Path.Combine(Path.GetDirectoryName(typeof(NavigatorPlugin).Assembly.Location)!, "tools");
-            await AnalyzeAsync(new FfmpegBackend(Path.Combine(tools, "ffmpeg.exe"), Path.Combine(tools, "ffprobe.exe")));
+            await AnalyzeAsync(Ymm4FfmpegLocator.CreateBackend());
         }
         catch (Exception ex) { Status = "解析を開始できませんでした。" + ex.GetBaseException().Message; }
     }
