@@ -6,13 +6,13 @@ Authority: [DESIGN.md](DESIGN.md) §17。Goal/Scopeを変更せず実装の段�
 
 **FIRST WORKING CHECKPOINT / NOT A COMPLETE RELEASE**
 
-- W1 basic Target/Projection/Review spine: implemented, product native24 assertions PASS.
-- W2 CPU primitive/Pack/pure engine: implemented, Core27 cases PASS.
-- W4 no-redecode multi-profile runtime: basic path implemented with generic seed Profiles.
-- W3 Corpus intake, W5 reverse classification, W6 refinement: not implemented yet.
-- W7 GPU/performance/real-game quality/distribution/user acceptance: open.
+- W1 basic Target/Projection/Review spine: implemented, current product native **27 assertions PASS**。
+- W2 CPU primitive/Pack/pure engine: implemented, Core27 cases PASS。YMM4 bundled FFmpeg locator integrationもnative PASS。
+- W4 no-redecode multi-profile runtime: basic path implemented with generic seed Profiles。
+- W3 Corpus intake, W5 reverse classification, W6 refinement: not implemented yet。
+- W7 GPU/performance/real-game quality/installer/user acceptance: open。
 
-W1 native readiness does not mean all project lifecycle/physical input/decoder correspondence is proved. W2 Pack serialization does not mean a persistent Corpus manager already exists.
+W1 native readiness does not mean all project lifecycle/physical input/decoder correspondence is proved。W2 Pack serialization does not mean a persistent Corpus manager already exists。
 
 ## Dependency overview
 
@@ -24,36 +24,29 @@ W2 Shared Feature Engine ─> W3 Corpus ─> W5 Reverse Classification ─> W6 R
                                                                   W7 First Value / Distribution
 ```
 
-W1/W2の最初の並列作業は成立した。次の主工程はW3。作成済みCore/Adapter/fixturesを再実装しない。
+W1/W2の最初の並列作業は成立した。次の主工程はW3。作成済みCore/Adapter/fixtures/backend locatorを再実装しない。
 
 ## W1 — YMM4 Target / Projection Spine
 
 **Purpose:** explicit Target Setからdummy/real-feature candidateを正しいTimeline occurrenceへJumpする。
 
-**Implemented baseline:**
-- public Timeline/FPS/selectionとsession-local identity;
-- immutable target snapshot、atomic capture、stale target rejection;
-- version-pinned PlaybackRateMap getterをTargetAdapterへ隔離;
-- source-range union、独立occurrence、半開区間、integer seek;
-- 日本語ToolとPrev/Next/List。
+**Implemented baseline:** public Timeline/FPS/selectionとsession-local identity、immutable snapshot、atomic capture、stale rejection、version-pinned PlaybackRateMap boundary、source-range union、独立occurrence、半開区間、integer seek、日本語ToolとPrev/Next/List。
 
-**Adopted host facts:** PlaybackRate2を使用、offsetを倍率へ含めないnative map、50/100/200%、inverse end exclusion。ContentLengthはconsumed durationへ使わない。Lab索引を参照し再発見しない。
+**Adopted host facts:** PlaybackRate2、offsetを倍率へ含めないnative map、50/100/200%、inverse end exclusion。ContentLengthはconsumed durationへ使わない。Lab索引を参照し再発見しない。
 
-**Acceptance retained:** trim/nonzero start/supported constant rate、same-source multiple occurrences、selection固定、stale誤投影拒否、private依存の隔離。
-
-**Remaining:** broader project reload/scene switch/Undo lifecycle、背景処理中の切替、decoded frame/physical inputの追加確認。基本W1 PASSとは別に追う。
+**Remaining:** broader project reload/scene switch/Undo lifecycle、背景処理中の切替、decoded frame/physical input。基本W1 PASSとは別に追う。
 
 ## W2 — Shared Feature Engine
 
 **Purpose:** RuntimeとLearningが同じsemantic前のprimitive/schemaを使う。
 
-**Implemented:** FFmpeg子processのCPU経路、generated media、visual/audio primitives、empirical salience、versioned FeaturePackと検証付きPackStore、欠損featureの非互換判定。詳細は [FEATURE_FORMAT.md](FEATURE_FORMAT.md)。
+**Implemented:** FFmpeg子process CPU経路、generated media、visual/audio primitives、empirical salience、versioned FeaturePack、検証付きPackStore、欠損featureの非互換判定。Plugin runtimeはYMM4 public `FFmpegResourceLocator`からhost同梱backendを取得し、独自FFmpeg copy/PATH探索を持たない。Coreはexplicit path inputのままYMM4非依存を維持する。
 
-**Acceptance retained:** serialize/reload後の値/schema/time、同じevaluator入力、backend failure/cancelの分離、サイズ/速度を実測できること。
+**Acceptance retained:** serialize/reload後の値/schema/time、同じevaluator入力、backend failure/cancelの分離、サイズ/速度実測可能、bundled ffmpeg/ffprobe exact pathとprivate-copy不在をnativeで確認。
 
-**Remaining:** 長尺/multiple-sourceの実測、容量/メモリ最適化、GPU capability/resize/fallback、必要ならMAD/IQRを含むnormalization比較。現行の経験的percentileは最初の実装で、DESIGNの初期候補を最適値として確定したものではない。
+**Remaining:** 長尺/multiple-source実測、容量/メモリ最適化、GPU capability/resize/fallback、他codec/VFR、normalization比較。YMM4版更新時はhost locator/sibling ffprobeを再検証する。
 
-**Budget:** 数学/serializationはLinux pure tests。GPU/codec/host負荷は対応するcheckpointだけ。
+**Budget:** 数学/serializationはLinux pure tests。GPU/codec/host integrationだけ対応するcheckpointでnative。
 
 ## W3 — Learning Corpus Intake — NEXT
 
@@ -105,7 +98,9 @@ W1/W2の最初の並列作業は成立した。次の主工程はW3。作成済�
 
 **Purpose:** 実YMM4編集環境の価値と通常配布を成立させる。
 
-**Exit retained:** X4 Profile複数巡回、raw-video-free learning、background/progress/cancel、supported GPU + software fallback、安定した `.ymme` 内部root、配布backend条件、独立release evidence validator、通常導入とユーザーacceptance。
+**Backend decision:** NavigatorはFFmpeg binaryを配布しない。supported YMM4が同梱するbackendをpublic locator経由で使い、版更新時に再検証する。
+
+**Exit retained:** X4 Profile複数巡回、raw-video-free learning、background/progress/cancel、supported GPU + software fallback、安定した `.ymme` 内部root、独立release evidence validator、通常導入/upgrade、ユーザーacceptance。
 
 Functional/native、UIUX、package/install/upgrade、human acceptanceを別Claimとして確認。現行DLL artifactは一般配布版ではない。
 
@@ -113,4 +108,4 @@ Goal到達後、他GenreやHeavy Detectorへ自動拡張しない。
 
 ## Next execution
 
-[IMPLEMENTATION_KICKOFF.md](IMPLEMENTATION_KICKOFF.md) に従いW3を追加し、その後W5/W6を接続。host未知事実だけをLabへ戻す。実録画やCorpus、第三者host/backend binaryはrepoへcommitしない。
+[IMPLEMENTATION_KICKOFF.md](IMPLEMENTATION_KICKOFF.md) に従いW3を追加し、その後W5/W6を接続。host未知事実だけをLabへ戻す。実録画やCorpus、host runtime binaryはrepoへcommitしない。

@@ -29,6 +29,7 @@ Preserve these current material decisions unless the user reopens them:
 - Raw learning video is not the Corpus authority. Preserve enough primitive Feature data to replay Profile changes without raw video.
 - No silent self-training. Profile updates require replay/regression, preview and explicit apply/revision.
 - Recording Archive remains a separate product responsibility. Do not add classification/learning UI to it from this repository.
+- For supported YMM4 4.56.1.0, use the host's bundled `ffmpeg.exe` through public `FFmpegResourceLocator` and derive the verified sibling `ffprobe.exe`. Do not ship a private FFmpeg copy or silently fall back to PATH; revalidate this host contract when supported YMM4 versions change.
 - Heavy ML/OCR/Object Detection are not CURRENT requirements.
 
 ## Repository boundary: Lab first, product proof here
@@ -76,6 +77,7 @@ Prefer explicit boundaries rather than one large Plugin class:
 
 ```text
 YMM4 Target Adapter
+YMM4 FFmpeg Locator
 Source Range Planner
 FFmpeg Analysis Backend
 Shared Feature Engine
@@ -87,7 +89,7 @@ Timeline Projection / Review Navigator
 Profile Authoring / Reverse Classification / Refinement
 ```
 
-YMM4-private/reflection dependencies belong behind the narrow Target/Host adapter. Feature extraction, Profile evaluation, Corpus replay, Union/Merge and most learning logic should remain YMM4-independent and pure-testable.
+YMM4-private/reflection dependencies belong behind the narrow Target/Host adapter. YMM4 FFmpeg path resolution belongs in the Plugin locator; Core receives executable paths and remains host-independent. Feature extraction, Profile evaluation, Corpus replay, Union/Merge and most learning logic should remain YMM4-independent and pure-testable.
 
 ## Data and safety
 

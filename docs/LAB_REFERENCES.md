@@ -10,7 +10,6 @@ Claimごとに実験、tested source/host、採用範囲、未証明部分、再
 - Exact host: YMM4 Lite **4.56.1.0**
 - Host ZIP SHA256: `49c0ed689f545737b7ce939971bfc625962e00791c57883dc8e6f058aa336c5a`
 - Timing source head: `7450eb3d9b92cbb67c40f2ceac10f80b0ab6c5bd`
-- [PlaybackRateMap experiment](https://github.com/ziro-lab/chat-native-work-lab-001/blob/0b69aed70a3f8a84cc2ede539d794cb4e8108677/experiments/ymm4/playbackratemap-source-time/README.md)
 - Timing run: `35113196298`; artifact `10452663798`; ZIP SHA256 `56e7c20f619dbba448c8272a1997862aae94b1491c9077b783e29308fc6f51de`
 
 採用する内容:
@@ -30,14 +29,13 @@ Source時間計算の未知探索を再実行せず、製品での使用箇所�
 
 ## Navigation target context — ADOPTED for basic W1
 
-- [Experiment and corrected boundaries](https://github.com/ziro-lab/chat-native-work-lab-001/blob/5666810491cc7b6c82c60260538f41efa2b7d325/experiments/ymm4/navigation-target-context/README.md)
 - Tested source/checkout: `3b52a3acff544ed0ec759d657f48364a415c485c`
 - Source tree: `19d3b10569103addb79c63653ed0c8e49f85b1d4`
 - Evidence text correction: `5666810491cc7b6c82c60260538f41efa2b7d325`
 - Lab PR: #12
 - Run: `35120206452`; job `104875765200`
 - Artifact: `10457134077`; ZIP SHA256 `78b2b65c8ea6e7438e0f79775388d2d5a6d8159df25a69f0038ec5650931d2ab`
-- Exact host: YMM4 Lite4.56.1.0, observed60fps; **16 required assertions PASS**.
+- Exact host: YMM4 Lite4.56.1.0, observed60fps; **16 required assertions PASS**。
 
 採用する内容:
 
@@ -57,6 +55,36 @@ identityは **session object reference + Navigator側snapshot Guid**。永続ID�
 
 元のLab proseにあった「Tool menu invocationを確認」は、`Info != null`だけのassertionでは支持されなかったため修正済み。callback受信と可視UIの作成は別Claim。ToolAreaViewModelの表示と製品Viewの実体はNavigator native checkpointで別途確認する。Labの古い強い表現を実装の根拠としてコピーしない。
 
+## YMM4 bundled FFmpeg surface — ADOPTED
+
+- Lab merge commit: `c1acd43297f9a1c2dd5053e7c9667fb84fa237b5`
+- Tested source head: `21090626faeb7985f964a26c4a57b8f301255a88`
+- Exact host: YMM4 Lite **4.56.1.0** / x64
+- Host ZIP SHA256: `49c0ed689f545737b7ce939971bfc625962e00791c57883dc8e6f058aa336c5a`
+- Run: `35123682432`; job `104887398283`
+- Artifact: `10458179237`; ZIP SHA256 `c3b8acfc064388731ad33a6493ed07bf53f43abed5ec1b03d97116b54b9559cb`
+
+Labが確認した物理配置:
+
+```text
+Resources\bin\x64\ffmpeg\ffmpeg.exe
+Resources\bin\x64\ffmpeg\ffprobe.exe
+```
+
+public `YukkuriMovieMaker.Plugin.FileSource.FFmpeg.FFmpegResourceLocator` には `GetFFmpegDirectory()` / `GetFFmpegExePath()` があり、**実YMM4 process内**で既存のbundled pathを返した。public `GetFFprobeExePath()` は確認されていないが、`GetFFmpegDirectory()` のsibling `ffprobe.exe` が存在することをnativeで検証済み。
+
+Navigatorの採用ルール:
+
+1. Plugin runtimeは `FFmpegResourceLocator.GetFFmpegExePath()` と `GetFFmpegDirectory()` をAuthorityにする。
+2. `ffprobe.exe` は検証済みFFmpeg directoryのsiblingとして解決し、存在しなければfail closedする。
+3. 外部PATHを探索しない。Navigator独自のFFmpeg binaryをPlugin folderへcopy/bundleしない。
+4. Coreの `FfmpegBackend(ffmpegPath, ffprobePath)` はhost非依存のまま維持し、YMM4 path解決だけPlugin層で行う。
+5. supported YMM4 versionを4.56.1.0から上げるとき、locatorとsibling配置を再検証する。
+
+製品側ではsource `61126ef4be5b630118ae574823c9ba26d7c07f51`、run `35129626271` でlocator由来のexact paths、private backend copy不在、実解析を含む**27 required assertions PASS**を別途確認した。Labのhost factだけで製品統合PASSを代用していない。
+
+補足: YMM4 4.56.1.0同梱FFmpegはnative fixture作成時に `libx264` encoderを提供しなかったため、product regression fixtureは同梱backendが生成可能なFFV1/PCM MKVへ変更した。これは解析backendのdecode/read capability不足を意味しない。Navigatorのfeature extractionはencoderを要求しない。
+
 ## W1 status after implementation
 
 | Claim | Status / boundary |
@@ -67,11 +95,12 @@ identityは **session object reference + Navigator側snapshot Guid**。永続ID�
 | Explicit Target Set | implemented; selection-independent snapshot / stale rejection product tests |
 | Fractional rounding | product ceiling policy + native map validation |
 | Visible product Tool / compiled XAML | product native checkpoint; Lab callbackのみから推定しない |
+| YMM4 bundled FFmpeg / ffprobe locator | ADOPTED + product native integration PASS |
 | Reload/Undo/scene-switch完全lifecycle | broader acceptance still open; referencesを永続化しない |
 | Physical input / decoded preview-frame correspondence | NOT PROVEN |
 | Variable/reverse playback, other host versions | OUT OF VERIFIED SCOPE |
 
-再確認条件はhost版変更、map/surface変更、対応速度範囲拡張、product regressionとの矛盾。Q1〜Q4をまた一式新規Labへ投げない。詳細は [W1_LAB_QUESTIONS.md](W1_LAB_QUESTIONS.md)、製品証拠は [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)。
+再確認条件はhost版変更、map/locator surface変更、対応速度範囲拡張、product regressionとの矛盾。既存の確定Claimをまた一式新規Labへ投げない。製品証拠は [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)。
 
 ## Validation practice — ADOPTED
 
