@@ -9,6 +9,7 @@ Authority: `docs/DESIGN.md` §17を実装向けに展開したもの。GoalやMa
 - v0.4.0 design authority: ready
 - repository/lab boundary: defined
 - native validation policy: defined
+- Recording Archive Lab timing evidence: adopted for W1 where applicable
 - product code: not started
 - active product native workflow: intentionally not created yet（W1 integration codeが無い状態でActionを回さないため）
 
@@ -32,12 +33,26 @@ W1のLab確認とW2のpure implementationは並行可能。
 
 **Purpose:** YMM4上の対象Video ItemとSource timeをsnapshotし、dummy candidateを正しいTimeline occurrenceへJumpできる最小spineを作る。
 
-**Lab first questions:**
+### Adopted before implementation
 
-- selected/target VideoItem identityを安全にsnapshotするsurface;
-- `FilePath / ContentOffset / Length / PlaybackRate / ItemStartFrame / Timeline FPS` のcurrent semantics;
-- trim / nonzero start / positive constant PlaybackRateのrounding;
+Recording ArchiveのLab evidence chainから、YMM4 Lite v4.56.1.0について次をW1前提として採用する。詳細Authorityは `docs/LAB_REFERENCES.md`。
+
+- current rate surfaceは `PlaybackRate2`。legacy `BaseItem.PlaybackRate` は使用しない;
+- native source-time authorityは `PlaybackRateMap`;
+- constant positive 50 / 100 / 200%では `sourceTime = ContentOffset + itemTime * rate / 100`;
+- `ContentOffset`自体へrateを掛けない;
+- inverse lookupはtested caseでhalf-open `[0, Length)`;
+- `ContentLength`をSource Range consumed lengthの推定へ使わない。
+
+これらを再発見するためのLab Actionは回さない。
+
+**Remaining Lab-first questions:**
+
+- selected/target VideoItemをexplicit Target Setへ固定するstable-enough identity / occurrence identity;
+- Timeline identity / Timeline FPS authority;
+- Timeline absolute frame -> item-local timeのboundary / rounding;
 - Tool PluginからTimeline seek/jumpする最小surface;
+- selection変更後もTarget Setを固定し、project/scene lifecycleでstale identityを検出する境界;
 - public/private/reflection boundary。
 
 既存Lab evidenceで足りるClaimは再利用し、不足ClaimだけProbeする。
@@ -46,18 +61,21 @@ W1のLab確認とW2のpure implementationは並行可能。
 
 - narrow YMM4 Target Adapter;
 - immutable target snapshot;
-- Source Range Planner skeleton;
+- `PlaybackRateMap` accessをTarget Adapter内へversion-pinned boundaryとして隔離;
+- Source Range Planner skeleton（`ContentLength`依存禁止）;
 - dummy Source Episode -> Item occurrence projection;
 - Review Navigator minimal Prev/Next/Jump spine。
 
 **Exit:**
 
 - same source / multiple occurrenceを含むfixtureでsource-time -> timeline mappingが再現可能;
-- trim / nonzero start / supported positive PlaybackRateでJump一致;
+- trim / nonzero start / supported positive constant `PlaybackRate2`でJump一致;
+- item end boundaryでoff-by-one / inverse-end誤投影がない;
 - Selection変更で既存Target Setが黙って変わらない;
+- stale Targetを別Itemへ誤投影しない;
 - private/reflection dependencyがAdapter外へ漏れない。
 
-**Action budget:** Labでhost factを確定してから、Navigator側native smokeはExit claimだけを確認する。
+**Action budget:** Labで残存host factだけ確定してから、Navigator側native smokeはExit claimだけを確認する。`PlaybackRate2` / `PlaybackRateMap`の既知behavior確認だけの重複Actionは作らない。
 
 ---
 
@@ -223,7 +241,7 @@ Goal到達後、他GenreやHeavy Detectorへ自動拡張しない。
 
 次に着手する標準順は:
 
-1. W1に必要なYMM4 host Claimを `LAB_REFERENCES.md` で棚卸し;
-2. 不足ClaimだけLabへ最小Probe;
+1. `LAB_REFERENCES.md` のADOPTED timing Claimを実装前提として読む;
+2. W1の残存Claim（Target identity / Timeline frame rounding / seek-jump）だけLabへ最小Probe;
 3. 同時にW2のYMM4非依存Feature schema / fixture skeletonを開始;
 4. W1 native Exitが通った時点でNavigator product native workflowを追加。
