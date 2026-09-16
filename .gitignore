@@ -1,0 +1,37 @@
+# .NET / Visual Studio
+bin/
+obj/
+.vs/
+TestResults/
+*.user
+*.suo
+
+# Build/package output
+artifacts/
+out/
+dist/
+packages/
+*.ymme
+
+# Local host/runtime copies
+.local/
+.y-mm4/
+YukkuriMovieMaker4/
+
+# User projects / raw media / local learning data
+*.ymmp
+*.mp4
+*.mkv
+*.mov
+*.webm
+*.avi
+*.wav
+*.flac
+/local-data/
+/learning-inbox/
+/learning-corpus/
+/test-output/
+
+# OS/editor
+.DS_Store
+Thumbs.db
