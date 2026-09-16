@@ -32,7 +32,7 @@
   <TextBlock Grid.Row="4" Text="{Binding CandidateSummary}" Margin="0,0,0,6"/>
   <ListBox x:Name="CandidateList" ToolTip="チェック印は移動済みの候補です。映像全体を確認したという判定ではありません。" Grid.Row="5" ItemsSource="{Binding Candidates}" SelectedItem="{Binding Selected}" DisplayMemberPath="Display" MouseDoubleClick="CandidateDoubleClick" ScrollViewer.HorizontalScrollBarVisibility="Auto" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"/>
   <StackPanel Grid.Row="6" Margin="0,8,0,0">
-   <ProgressBar Minimum="0" Maximum="1" Value="{Binding Progress}" Height="4"/>
+   <ProgressBar Minimum="0" Maximum="1" Value="{Binding Progress,Mode=OneWay}" Height="4"/>
    <TextBlock Text="{Binding Status}" TextWrapping="Wrap" Margin="0,6,0,0"/>
   </StackPanel>
  </Grid>
