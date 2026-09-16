@@ -53,7 +53,8 @@ public static class Ymm4FfmpegLocator
 
     private static string InvokeString(Type locator, string name)
     {
-        var method = locator.GetMethod(name, BindingFlags.Public | BindingFlags.Static, Type.EmptyTypes)
+        var method = locator.GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .SingleOrDefault(x => x.Name == name && x.GetParameters().Length == 0)
             ?? throw new MissingMethodException(locator.FullName, name);
         return method.Invoke(null, null) as string ?? throw new InvalidDataException($"{name} returned no path.");
     }
