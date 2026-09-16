@@ -2,7 +2,7 @@ name: Navigator native checkpoint
 on:
   workflow_dispatch:
   push:
-    branches: ['feature/w1-projection-spine', 'feature/use-ymm4-bundled-ffmpeg', 'feature/capability-guard-no-crash']
+    branches: ['feature/w1-projection-spine', 'feature/use-ymm4-bundled-ffmpeg', 'feature/capability-guard-no-crash', 'feature/w3-w5-transition-learning']
     paths:
       - 'src/Ymm4HighlightNavigator.Plugin/**'
       - 'tests/Ymm4HighlightNavigator.Plugin.Tests/**'
@@ -81,7 +81,12 @@ jobs:
           name: navigator-native-checkpoint
           path: |
             out/distribution/
-            out/evidence/
+            out/evidence/result.json
+            out/evidence/summary.json
+            out/evidence/learning-summary.json
+            out/evidence/assertions.txt
+            out/evidence/startup.txt
+            out/evidence/*.png
             out-build.txt
             out-proof-build.txt
             out/host-backend-hashes.txt

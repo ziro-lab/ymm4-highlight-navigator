@@ -17,7 +17,7 @@ internal static class LearningSpecs
     private static void Reject(Action action)
     {
         bool rejected = false;
-        try { action(); } catch (Exception e) when (e is IOException or ArgumentException or InvalidOperationException or OperationCanceledException or JsonException or NotSupportedException) { rejected = true; }
+        try { action(); } catch (Exception e) when (e is IOException or InvalidDataException or ArgumentException or InvalidOperationException or OperationCanceledException or JsonException or NotSupportedException) { rejected = true; }
         Check(rejected, "Expected rejection.");
     }
     private static FeaturePack Make(string name, double at = 4, double duration = 10, byte from = 0, byte to = 255, bool audio = false, int fps = 2, double start = 0)
@@ -258,7 +258,7 @@ internal static class LearningSpecs
             File.Copy(fixture, Path.Combine(input, "a.mkv")); File.Copy(fixture, Path.Combine(input, "b.mkv"));
             var store = Store(); var result = await store.ImportAsync(LearningInputs.Folder(input, Battle), backend);
             Check(result.Committed == 2 && result.Failed == 0 && store.Read().Samples.Length == 1, "Real duplicate decoded/registered once");
-            Directory.Delete(input, true); // Test-owned copies only; product never deletes raw media.
+            Directory.Delete(input, true);
             var set = FilterAuthor.Load(new(store.Root), Battle); var draft = FilterAuthor.Create(set);
             var saved = new FilterStore(store).Apply(draft); Check(TransitionMatcher.Replay(set, saved).Covered == 1, "Real raw-free learning replay");
         });

@@ -26,7 +26,12 @@ public class NotifyModel : INotifyPropertyChanged
 
 public sealed class ProfileChoice(SceneProfile profile) : NotifyModel
 {
+    // For a learned filter Profile carries only identity/display metadata. Query dispatch MUST use Learned.
     public SceneProfile Profile { get; } = profile;
+    public TransitionFilter? Learned { get; }
+    public ProfileChoice(TransitionFilter learned) : this(new SceneProfile(learned.Id,
+        learned.Label.Group + " / " + learned.Label.Name + (learned.Revision == 0 ? "（試用）" : ""), []))
+        => Learned = learned;
     private bool enabled = true;
     private string count = "";
     public string Name => Profile.Name;
@@ -52,9 +57,9 @@ public sealed class RelayCommand(Action action, Func<bool> allowed) : ICommand
     public event EventHandler? CanExecuteChanged { add => CommandManager.RequerySuggested += value; remove => CommandManager.RequerySuggested -= value; }
 }
 
-public sealed class NavigatorModel : NotifyModel, ITimelineToolViewModel, IToolViewModel, IDisposable
+public sealed partial class NavigatorModel : NotifyModel, ITimelineToolViewModel, IToolViewModel, IDisposable
 {
-    private sealed record Analyzed(string SourceKey, FeatureTable Table);
+    private sealed record Analyzed(string SourceKey, FeatureTable Table, TransitionIndex Transitions);
     private sealed record QueryResult(TargetSnapshot Target, ReviewEpisode Episode);
     private sealed class ForwardProgress(Action<AnalysisProgress> report) : IProgress<AnalysisProgress>
     {
@@ -94,21 +99,20 @@ public sealed class NavigatorModel : NotifyModel, ITimelineToolViewModel, IToolV
 
     public NavigatorModel()
     {
-        // Clearly named generic seeds, not unverified learned Battle/Station classifiers.
-        Profiles.Add(new(new("seed.visual", "映像の急変", [new(FeatureAxis.Delta, .8f, .08f)])));
-        Profiles.Add(new(new("seed.audio", "音の強い場面", [new(FeatureAxis.AudioPeak, .8f, .05f)])));
-        Profiles.Add(new(new("seed.brightness", "明るい場面", [new(FeatureAxis.Luma, .9f, .8f)])));
+        Profiles.Add(new(new SceneProfile("seed.visual", "映像の急変", [new(FeatureAxis.Delta, .8f, .08f)])));
+        Profiles.Add(new(new SceneProfile("seed.audio", "音の強い場面", [new(FeatureAxis.AudioPeak, .8f, .05f)])));
+        Profiles.Add(new(new SceneProfile("seed.brightness", "明るい場面", [new(FeatureAxis.Luma, .9f, .8f)])));
         foreach (var profile in Profiles) profile.PropertyChanged += ProfileChanged;
         CaptureCommand = new RelayCommand(() => Safe(CaptureSelection), () => !disposed && !IsBusy && adapter.HasTimeline);
         AnalyzeCommand = new RelayCommand(() => _ = AnalyzeFromUiAsync(), () => !disposed && !IsBusy && Targets.Length > 0);
         CancelCommand = new RelayCommand(Cancel, () => IsBusy || IsQuerying);
-        PreviousCommand = new RelayCommand(() => Safe(() => Move(-1)), () => !IsBusy && !IsQuerying && Candidates.Count > 0);
-        NextCommand = new RelayCommand(() => Safe(() => Move(1)), () => !IsBusy && !IsQuerying && Candidates.Count > 0);
-        JumpCommand = new RelayCommand(() => Safe(JumpSelected), () => !IsBusy && !IsQuerying && Selected != null);
+        PreviousCommand = new RelayCommand(() => Safe(() => Move(-1)), () => !disposed && !IsBusy && !IsQuerying && Candidates.Count > 0);
+        NextCommand = new RelayCommand(() => Safe(() => Move(1)), () => !disposed && !IsBusy && !IsQuerying && Candidates.Count > 0);
+        JumpCommand = new RelayCommand(() => Safe(JumpSelected), () => !disposed && !IsBusy && !IsQuerying && Selected != null);
     }
     private void ProfileChanged(object? sender, PropertyChangedEventArgs e) { if (e.PropertyName == nameof(ProfileChoice.Enabled)) _ = RequeryAsync(); }
     private static void Commands() => CommandManager.InvalidateRequerySuggested();
-    private void Safe(Action action) { try { action(); } catch (Exception ex) { Status = ex.GetBaseException().Message; } }
+    private void Safe(Action action) { try { action(); } catch (Exception ex) { Status = ex.Message; } }
 
     public void SetTimelineToolInfo(TimelineToolInfo info)
     {
@@ -130,11 +134,8 @@ public sealed class NavigatorModel : NotifyModel, ITimelineToolViewModel, IToolV
     }
     private async Task AnalyzeFromUiAsync()
     {
-        try
-        {
-            await AnalyzeAsync(Ymm4FfmpegLocator.CreateBackend());
-        }
-        catch (Exception ex) { Status = "解析を開始できませんでした。" + ex.GetBaseException().Message; }
+        try { await AnalyzeAsync(Ymm4FfmpegLocator.CreateBackend()); }
+        catch (Exception ex) { Status = "解析を開始できませんでした。" + ex.Message; }
     }
     public async Task AnalyzeAsync(FfmpegBackend backend)
     {
@@ -147,7 +148,6 @@ public sealed class NavigatorModel : NotifyModel, ITimelineToolViewModel, IToolV
         analyzed.Clear(); Candidates.Clear(); Selected = null; hitTotal = 0; hasQueryResult = false; Changed(nameof(CandidateSummary));
         foreach (var p in Profiles) p.Count = "未計算";
         IsBusy = true; Progress = 0; Status = "録画の特徴を解析しています。";
-        // Build a NEW index, publish only after the complete transaction succeeds.
         try
         {
             var work = targets.GroupBy(t => t.SourceKey, StringComparer.OrdinalIgnoreCase)
@@ -159,11 +159,10 @@ public sealed class NavigatorModel : NotifyModel, ITimelineToolViewModel, IToolV
                 for (int index = 0; index < work.Length; index++)
                 {
                     token.ThrowIfCancellationRequested();
-                    var item = work[index];
-                    int currentIndex = index;
+                    var item = work[index]; int currentIndex = index;
                     var rangeProgress = new ForwardProgress(p => report.Report(p with { Fraction = (currentIndex + p.Fraction) / work.Length }));
                     var pack = await backend.ExtractAsync(item.Source, item.Range.Start, item.Range.End, progress: rangeProgress, token: token).ConfigureAwait(false);
-                    rows.Add(new(item.Source, new FeatureTable(pack)));
+                    rows.Add(new(item.Source, new FeatureTable(pack), TransitionIndex.Build(pack, token)));
                 }
                 return rows;
             }, token);
@@ -173,7 +172,7 @@ public sealed class NavigatorModel : NotifyModel, ITimelineToolViewModel, IToolV
             analyzed.Clear(); analyzed.AddRange(completed); Progress = 1; Status = "解析が完了しました。";
         }
         catch (OperationCanceledException) { if (!disposed && stamp == generation) Status = "解析を中止しました。未完了データは反映していません。"; }
-        catch (Exception ex) { if (!disposed && stamp == generation) Status = "解析できませんでした。" + ex.GetBaseException().Message; throw; }
+        catch (Exception ex) { if (!disposed && stamp == generation) Status = "解析できませんでした。" + ex.Message; throw; }
         finally { IsBusy = false; analysisCancel?.Dispose(); analysisCancel = null; }
         if (!disposed && stamp == generation) await RequeryAsync();
     }
@@ -184,7 +183,7 @@ public sealed class NavigatorModel : NotifyModel, ITimelineToolViewModel, IToolV
         queryCancel?.Cancel(); queryCancel?.Dispose(); queryCancel = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken); var token = queryCancel.Token;
         int stamp = generation, q = ++queryGeneration;
         var sources = analyzed.ToArray(); var targets = Targets;
-        var profiles = Profiles.Select(p => (p.Profile, p.Enabled)).ToArray(); double sens = Sensitivity;
+        var profiles = Profiles.Select(p => (p.Profile, p.Learned, p.Enabled)).ToArray(); double sens = Sensitivity;
         IsQuerying = true;
         try
         {
@@ -195,7 +194,9 @@ public sealed class NavigatorModel : NotifyModel, ITimelineToolViewModel, IToolV
                 foreach (var source in sources)
                 {
                     token.ThrowIfCancellationRequested();
-                    var evaluations = profiles.Select(p => (Choice: p, Evaluation: ProfileEvaluator.Evaluate(source.Table, p.Profile, sens))).ToArray();
+                    var evaluations = profiles.Select(p => (Choice: p, Evaluation: p.Learned is null
+                        ? ProfileEvaluator.Evaluate(source.Table, p.Profile, sens)
+                        : TransitionMatcher.Evaluate(source.Transitions, p.Learned, sens, token))).ToArray();
                     foreach (var e in evaluations) if (!e.Evaluation.Compatible) unavailable[e.Choice.Profile.Id]++;
                     foreach (var target in targets.Where(t => StringComparer.OrdinalIgnoreCase.Equals(t.SourceKey, source.SourceKey)))
                     {
@@ -208,7 +209,6 @@ public sealed class NavigatorModel : NotifyModel, ITimelineToolViewModel, IToolV
                             counts[e.Choice.Profile.Id]++;
                             if (e.Choice.Enabled) included.Add(new(hit.ProfileId, clipped.Value));
                         }
-                        // Different Item occurrences MUST NOT be merged together just because they share source time.
                         output.AddRange(EpisodeUnion.Build(included).Episodes.Select(e => new QueryResult(target, e)));
                     }
                 }
@@ -230,11 +230,10 @@ public sealed class NavigatorModel : NotifyModel, ITimelineToolViewModel, IToolV
             var old = Selected;
             Candidates.Clear(); foreach (var item in next.OrderBy(c => c.Frame).ThenBy(c => c.TargetId)) Candidates.Add(item);
             Selected = old == null ? null : Candidates.FirstOrDefault(c => c.TargetId == old.TargetId && c.Source == old.Source);
-            hitTotal = profiles.Where(p => p.Enabled).Sum(p => result.counts[p.Profile.Id]);
-            hasQueryResult = true;
+            hitTotal = profiles.Where(p => p.Enabled).Sum(p => result.counts[p.Profile.Id]); hasQueryResult = true;
             foreach (var p in Profiles) p.Count = $"{result.counts[p.Profile.Id]}件" + (result.unavailable[p.Profile.Id] > 0 ? "（一部素材は非対応）" : "");
             Changed(nameof(CandidateSummary));
-            Status = Candidates.Count == 0 ? "候補がありません。プロファイルをONにするか、感度を広げてください。" : "前・次で候補へ移動できます。";
+            Status = Candidates.Count == 0 ? "候補がありません。フィルターをONにするか、感度を広げてください。" : "前・次で候補へ移動できます。";
         }
         catch (OperationCanceledException)
         {
@@ -242,11 +241,10 @@ public sealed class NavigatorModel : NotifyModel, ITimelineToolViewModel, IToolV
             {
                 Candidates.Clear(); Selected = null; hitTotal = 0; hasQueryResult = false;
                 foreach (var p in Profiles) p.Count = "未計算";
-                Changed(nameof(CandidateSummary));
-                Status = "候補の更新を中止しました。プロファイルか感度を変更すると再計算できます。";
+                Changed(nameof(CandidateSummary)); Status = "候補の更新を中止しました。フィルターか感度を変更すると再計算できます。";
             }
         }
-        catch (Exception ex) { if (!disposed && stamp == generation && q == queryGeneration) { Candidates.Clear(); Selected = null; hitTotal = 0; hasQueryResult = false; Changed(nameof(CandidateSummary)); Status = ex.GetBaseException().Message; } }
+        catch (Exception ex) { if (!disposed && stamp == generation && q == queryGeneration) { Candidates.Clear(); Selected = null; hitTotal = 0; hasQueryResult = false; Changed(nameof(CandidateSummary)); Status = ex.Message; } }
         finally { if (q == queryGeneration) IsQuerying = false; }
     }
 
@@ -271,7 +269,7 @@ public sealed class NavigatorModel : NotifyModel, ITimelineToolViewModel, IToolV
     public void Dispose()
     {
         if (disposed) return;
-        disposed = true; generation++; Cancel();
+        disposed = true; generation++; Cancel(); CloseLearningSurface();
         foreach (var p in Profiles) p.PropertyChanged -= ProfileChanged;
         analyzed.Clear(); visited.Clear(); Candidates.Clear(); adapter.Attach(null);
     }

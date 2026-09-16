@@ -42,8 +42,7 @@ public static class LearningInputs
     // Immediate children only: picking X4/Battle never silently labels all sibling folders Battle.
     public static ImmutableArray<LearningInput> Folder(string folder, LearningLabel label)
     {
-        label = label.Normalize();
-        folder = System.IO.Path.GetFullPath(folder);
+        label = label.Normalize(); folder = System.IO.Path.GetFullPath(folder);
         if (!Directory.Exists(folder)) throw new DirectoryNotFoundException("教材フォルダーが見つかりません。");
         RejectLinks(folder);
         var files = Directory.EnumerateFiles(folder).Where(IsVideo).Order(StringComparer.Ordinal).Take(10001).ToArray();
@@ -70,22 +69,15 @@ public sealed class CorpusStore
     public CorpusStore(string root) => Root = System.IO.Path.GetFullPath(root);
     internal FileStream AcquireWriter()
     {
-        Directory.CreateDirectory(Root);
-        LearningInputs.RejectLinks(Root);
+        Directory.CreateDirectory(Root); LearningInputs.RejectLinks(Root);
         return new FileStream(System.IO.Path.Combine(Root, ".writer.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
     }
     public CorpusSnapshot Read()
     {
         if (!Directory.Exists(Root)) return new(1, 0, []);
         LearningInputs.RejectLinks(Root);
-        if (!File.Exists(CatalogPath))
-        {
-            // Unregistered packs after cancellation are harmless and can be reused; never invent registrations.
-            return new(1, 0, []);
-        }
-        var snapshot = LearningJson.Read<CorpusSnapshot>(CatalogPath);
-        Validate(snapshot);
-        return snapshot;
+        if (!File.Exists(CatalogPath)) return new(1, 0, []);
+        var snapshot = LearningJson.Read<CorpusSnapshot>(CatalogPath); Validate(snapshot); return snapshot;
     }
     private static void Validate(CorpusSnapshot value)
     {
@@ -143,7 +135,6 @@ public sealed class CorpusStore
         if (File.Exists(path))
         {
             LearningInputs.RejectLinks(path);
-            // This may be an orphaned but valid Pack from an interrupted earlier import.
             if (Key(PackStore.Load(path).Header) != id) throw new InvalidDataException("未登録の特徴ファイルが教材と一致しません。");
         }
         else PackStore.Save(path, pack, token);
@@ -153,8 +144,7 @@ public sealed class CorpusStore
                 pack.Header.StartSeconds, pack.Header.EndSeconds, [label], [originalName], DateTimeOffset.UtcNow)
             : existing with { Labels = existing.Labels.Add(label), OriginalNames = existing.OriginalNames.Contains(originalName) || existing.OriginalNames.Length >= 32 ? existing.OriginalNames : existing.OriginalNames.Add(originalName) };
         var samples = existing == null ? snapshot.Samples.Add(entry) : snapshot.Samples.SetItem(snapshot.Samples.IndexOf(existing), entry);
-        var next = new CorpusSnapshot(1, checked(snapshot.Revision + 1), samples);
-        Validate(next);
+        var next = new CorpusSnapshot(1, checked(snapshot.Revision + 1), samples); Validate(next);
         LearningJson.Write(CatalogPath, next, Validate, token);
         return new(originalName, id, existing == null ? ImportDisposition.Added : ImportDisposition.MembershipAdded, null);
     }
@@ -173,8 +163,7 @@ public sealed class CorpusStore
             {
                 string path = System.IO.Path.GetFullPath(item.Path);
                 if (!LearningInputs.IsVideo(path)) throw new NotSupportedException("対応するローカル動画を指定してください。");
-                LearningInputs.RejectLinks(path);
-                item.Label.Normalize();
+                LearningInputs.RejectLinks(path); item.Label.Normalize();
                 var before = new FileInfo(path); long bytes = before.Length, write = before.LastWriteTimeUtc.Ticks;
                 progress?.Report(new(i, input.Length, name, "教材を確認"));
                 string hash;
@@ -195,7 +184,7 @@ public sealed class CorpusStore
                 results.Add(RegisterPack(pack, item.Label, name, token));
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { results.Add(new(name, null, ImportDisposition.Cancelled, null)); }
-            catch (Exception ex) when (ex is IOException or ArgumentException or NotSupportedException or JsonException or TimeoutException or UnauthorizedAccessException)
+            catch (Exception ex) when (ex is IOException or InvalidDataException or ArgumentException or NotSupportedException or JsonException or TimeoutException or UnauthorizedAccessException)
             { results.Add(new(name, null, ImportDisposition.Failed, ex.Message)); }
             progress?.Report(new(i + 1, input.Length, name, "取込結果を確認"));
         }
@@ -241,9 +230,7 @@ internal static class LearningJson
         try
         {
             using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None)) { stream.Write(bytes); stream.Flush(true); }
-            validate(Read<T>(temporary));
-            token.ThrowIfCancellationRequested();
-            File.Move(temporary, path, overwrite);
+            validate(Read<T>(temporary)); token.ThrowIfCancellationRequested(); File.Move(temporary, path, overwrite);
         }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
     }
