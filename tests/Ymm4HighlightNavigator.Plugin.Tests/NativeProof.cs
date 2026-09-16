@@ -92,29 +92,53 @@ internal static class Proof
                 lines.Add($"VIEW {element.GetType().FullName} dc={element.DataContext?.GetType().FullName} typedView={element is NavigatorView} typedModel={element.DataContext is NavigatorModel} visible={element.IsVisible} loaded={element.IsLoaded} size={element.ActualWidth}x{element.ActualHeight}");
         }
         if (active != null)
-            lines.Add("ACTIVE_FIELDS " + string.Join(",", active.GetType().GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).Select(f => f.Name + ":" + f.FieldType.FullName)));
+            lines.Add("ACTIVE_FIELDS " + string.Join(",", active.GetType().GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).Where(f => f.FieldType == typeof(Timeline)).Select(f => f.Name + ":" + f.FieldType.FullName)));
         lines.Add("ASSEMBLIES " + string.Join(" | ", AppDomain.CurrentDomain.GetAssemblies().Where(a => a.GetName().Name?.Contains("Navigator", StringComparison.Ordinal) == true).Select(a => a.FullName + ":" + a.Location)));
         File.AppendAllLines(Path.Combine(output, "startup.txt"), lines);
     }
     private static bool OpenTool(object main)
     {
+        static object? Read(object item, string name) => item.GetType().GetProperty(name)?.GetValue(item);
+        static string Text(object? value) => value is string text ? text : value == null ? "" : (Read(value, "Value")?.ToString() ?? value.ToString() ?? "");
         bool Visit(object item, int depth)
         {
             if (depth > 6) return false;
             var type = item.GetType();
-            var header = type.GetProperty("Header")?.GetValue(item)?.ToString() ?? "";
-            if (menuTrace.Add(type.FullName + ":" + header)) File.AppendAllText(Path.Combine(output, "startup.txt"), "MENU " + type.FullName + ":" + header + "\n");
-            if (header.Contains("YMM4見どころナビ", StringComparison.Ordinal) && type.GetProperty("Command")?.GetValue(item) is ICommand cmd)
+            string label = string.Join(" | ", new[] { "Header", "Title", "Name" }.Select(n => Text(Read(item, n))));
+            bool ownTool = label.Contains("YMM4見どころナビ", StringComparison.Ordinal);
+            foreach (string member in new[] { "Plugin", "Tool", "ViewModel", "ToolViewModel", "Model" })
             {
-                var parameter = type.GetProperty("CommandParameter")?.GetValue(item);
-                if (cmd.CanExecute(parameter)) { cmd.Execute(parameter); return true; }
+                var value = Read(item, member);
+                ownTool |= value is NavigatorModel || value is NavigatorPlugin;
+            }
+            if (menuTrace.Add(type.FullName + ":" + label))
+                File.AppendAllText(Path.Combine(output, "startup.txt"), "MENU " + type.FullName + ":" + label + "; members=" + string.Join(",", type.GetProperties().Select(p => p.Name + ":" + p.PropertyType.Name)) + "\n");
+            if (ownTool)
+            {
+                foreach (string name in new[] { "ShowCommand", "OpenCommand", "ActivateCommand", "ShowToolCommand", "ShowWindowCommand", "ToggleVisibleCommand", "ToggleVisibilityCommand", "Command" })
+                {
+                    if (Read(item, name) is not ICommand command) continue;
+                    var parameter = Read(item, "CommandParameter");
+                    if (!command.CanExecute(parameter)) continue;
+                    command.Execute(parameter);
+                    File.AppendAllText(Path.Combine(output, "startup.txt"), "OPENED " + name + "\n");
+                    return true;
+                }
+                // Host-owned registered Tool only; never construct a replacement product model to pass a test.
+                var visible = type.GetProperty("IsVisible");
+                if (visible?.PropertyType == typeof(bool) && visible.SetMethod?.IsPublic == true)
+                {
+                    visible.SetValue(item, true);
+                    File.AppendAllText(Path.Combine(output, "startup.txt"), "OPENED public IsVisible\n");
+                    return true;
+                }
             }
             foreach (var property in new[] { "Items", "Children", "MenuItems" })
-                if (type.GetProperty(property)?.GetValue(item) is IEnumerable children)
+                if (Read(item, property) is IEnumerable children)
                     foreach (var child in children) if (child != null && Visit(child, depth + 1)) return true;
             return false;
         }
-        if (main.GetType().GetProperty("ToolMenuItems")?.GetValue(main) is not IEnumerable roots) return false;
+        if (Read(main, "ToolMenuItems") is not IEnumerable roots) return false;
         foreach (var root in roots) if (root != null && Visit(root, 0)) return true;
         return false;
     }
