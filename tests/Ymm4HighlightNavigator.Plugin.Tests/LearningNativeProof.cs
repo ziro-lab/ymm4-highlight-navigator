@@ -36,10 +36,15 @@ internal static class LearningNativeProof
         Task importing = learning.ImportAsync(Ymm4FfmpegLocator.CreateBackend());
         check("learning_busy_actions_disabled", learning.IsBusy && !learning.ImportCommand.CanExecute(null) && !learning.ChooseFilesCommand.CanExecute(null) && learning.CancelCommand.CanExecute(null));
         await importing;
-        check("learning_batch_committed", learning.LastImport is { Committed: 2, Failed: 0, Cancelled: 0 } && store.Read().Samples.Length == 2);
+        // Keep the actual operation result even when the following assertion fails.
+        File.WriteAllText(Path.Combine(output, "learning-summary.json"), JsonSerializer.Serialize(new { stage = "intake", learning.Status, learning.LastImport, rows = learning.Rows.ToArray(), corpusRoot = store.Root }, new JsonSerializerOptions { WriteIndented = true }));
+        if (learning.LastImport is not { Committed: 2, Failed: 0, Cancelled: 0 })
+            throw new InvalidOperationException("Native intake failed: " + learning.Status + "\n" + JsonSerializer.Serialize(learning.LastImport));
+        check("learning_batch_committed", store.Read().Samples.Length == 2);
         check("learning_source_preserved", Hash(one) == oneHash && Hash(two) == twoHash);
         check("learning_import_does_not_train", new FilterStore(store).ReadAll().IsEmpty);
         await learning.CreateDraftAsync();
+        if (learning.Draft == null) throw new InvalidOperationException("Draft creation failed: " + learning.Status);
         check("learning_draft_created", learning.Draft is { Coverage.Covered: 2 } && learning.Draft.Filter.Patterns.Length > 0 && learning.SaveCommand.CanExecute(null));
         learning.Preview(); await navigator.RequeryAsync();
         check("learning_preview_not_persistent", navigator.Profiles.Any(p => p.Learned is { Revision: 0 }) && new FilterStore(store).ReadAll().IsEmpty);
@@ -48,6 +53,7 @@ internal static class LearningNativeProof
         check("learning_preview_runtime_hit", navigator.Candidates.Count > 0 && navigator.Candidates.All(c => c.Profiles.All(n => n.Contains("検証用", StringComparison.Ordinal))));
         await learning.SaveAsync();
         var saved = new FilterStore(store).Read(label);
+        if (saved == null) throw new InvalidOperationException("Filter save failed: " + learning.Status);
         check("learning_save_persisted", learning.LastSaved is { Revision: 1 } && saved is { Revision: 1 } && navigator.Profiles.Any(p => p.Learned is { Revision: 1 }));
         // Delete ONLY generated test-owned copies, never the fixture referenced by live Timeline Items.
         File.Delete(one); File.Delete(two); Directory.Delete(input);
@@ -61,16 +67,14 @@ internal static class LearningNativeProof
             foreach (var p in navigator.Profiles) p.Enabled = p.Learned != null;
             await navigator.RequeryAsync();
             check("learned_query_without_decoder", navigator.Candidates.Count > 0 && navigator.DecodedRangeCount == 1);
-            navigator.Sensitivity = .5; await navigator.RequeryAsync();
-            int narrowCount = navigator.Candidates.Count;
+            navigator.Sensitivity = .5; await navigator.RequeryAsync(); int narrowCount = navigator.Candidates.Count;
             navigator.Sensitivity = 2; await navigator.RequeryAsync();
             check("learned_sensitivity_without_decoder", navigator.Candidates.Count > 0 && navigator.DecodedRangeCount == 1);
-            navigator.Sensitivity = 1; await navigator.RequeryAsync();
-            navigator.Selected = null; navigator.Move(1);
+            navigator.Sensitivity = 1; await navigator.RequeryAsync(); navigator.Selected = null; navigator.Move(1);
             check("learned_filter_jump", navigator.Selected != null && timeline.CurrentFrame == navigator.Selected.Frame);
             File.WriteAllText(Path.Combine(output, "learning-summary.json"), JsonSerializer.Serialize(new
             {
-                samples = store.Read().Samples.Length, patterns = saved!.Patterns.Length,
+                samples = store.Read().Samples.Length, patterns = saved.Patterns.Length,
                 referenceCandidateSamples = learning.Draft!.Coverage.Covered,
                 narrowReviewCount = narrowCount, baselineReviewCount = navigator.Candidates.Count,
                 rawVideoPresent = false, semanticRecallMeasured = false, filterRevision = saved.Revision
@@ -81,9 +85,7 @@ internal static class LearningNativeProof
         string bad = Path.Combine(output, "invalid-teaching.mp4"); File.WriteAllText(bad, "not a recording");
         learning.SetFiles([bad], label); await learning.ImportAsync(Ymm4FfmpegLocator.CreateBackend());
         check("learning_error_does_not_escape", learning.LastImport is { Failed: 1, Committed: 0 } && new FilterStore(store).Read(label)!.Revision == 1 && File.ReadAllText(bad) == "not a recording");
-        File.Delete(bad);
-        window.Close();
-        await navigator.ReloadSavedFiltersAsync();
+        File.Delete(bad); window.Close(); await navigator.ReloadSavedFiltersAsync();
         check("learning_close_preserves_review", navigator.Targets.Length == 2 && navigator.Profiles.Any(p => p.Learned is { Revision: 1 }) && !Application.Current.Dispatcher.HasShutdownStarted);
     }
 
