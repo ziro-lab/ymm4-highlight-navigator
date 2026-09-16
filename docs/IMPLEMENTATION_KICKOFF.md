@@ -1,66 +1,27 @@
-# Implementation Kickoff
+# Implementation continuation
 
-この文書は初回着手点だけを固定する。詳細Authorityは `docs/DESIGN.md` と `docs/ROADMAP.md`。YMM4 hostの採用済みEvidenceは `docs/LAB_REFERENCES.md` を索引とする。
+W1/W2のコードは既にあります。初期のゼロからの実装指示を繰り返さず、[実装状況](IMPLEMENTATION_STATUS.md) と現在のbranch/PRを最初に確認してください。詳細の要件は [DESIGN.md](DESIGN.md)。
 
-## Immediate next work
+## 次の主工程 — W3 Learning Corpus Intake
 
-### W1 — Target / Projection Spine
+現在の `FeaturePack` / `PackStore` / `FfmpegBackend` を再利用し、分類済みフォルダから学習用Packとサンプル登録を一括で作る流れを追加します。
 
-Branch: `feature/w1-projection-spine`
+1. Folder -> Group/Profileをpreviewできるbatch入力。分類は人間が行い、録画アーカイブ側にUIを追加しない。
+2. Packと分類membership・provenanceを結び、同一素材の再取込／複数ラベルを二重学習しない。
+3. Pack書込・reload検証・sample登録のcommitを区別。元動画を外した状態でCorpusを再読込できることをテスト。
+4. 最初に非破壊Importを成立させる。消費削除を追加する場合だけ、明示された専用Inboxの所有権・部分失敗・中止・復旧・他project参照への影響を別テストする。Pack生成成功だけを削除Authorityにしない。
+5. その後W5のfrozen-profile評価とW6の改善候補／replay／明示反映へ進む。
 
-Recording Archive側のLab検証から、YMM4 Lite v4.56.1.0の以下は**実装開始前に採用済み**。
+## 残す境界
 
-```text
-rate surface        = PlaybackRate2
-source-time authority = PlaybackRateMap
-constant positive   = ContentOffset + itemTime * rate / 100
-inverse boundary    = tested caseで [0, Length)
-ContentLength       = Source Range consumed lengthには使わない
-```
+- CoreはYMM4を参照しない。hostの生オブジェクト、reflection、DispatcherはPluginのAdapter側。
+- `PlaybackRate2` / `PlaybackRateMap` の採用済み定速意味を再発見しない。
+- 初期プロファイルは汎用条件。実データなしにX4分類精度を主張しない。
+- 他フォルダへの所属はHard Negativeではない。逆分類結果を勝手に正解ラベルにしない。
+- runtime候補統合は同一Sourceの異なるItem occurrenceを消さない。
+- 純粋なCorpus/学習ロジックの変更はLinux側tests。Nativeはhost/UI/実行境界を変えるcheckpointで必要な範囲だけ。
+- 通常配布・GPU・長尺負荷・実X4のRecallは未検証項目として明示して管理する。
 
-そのためW1はゼロからtiming modelを調べ直さない。
+## 最初に実行する確認
 
-1. `docs/LAB_REFERENCES.md` のADOPTED timing Claimを実装前提として読む。
-2. 未解決の `Target identity / Timeline FPS / absolute frame -> item-local rounding / Timeline seek-jump / Target Set lifecycle` だけを `chat-native-work-lab-001` へ最小Probeする。
-3. Navigator側ではTarget Adapter / immutable snapshot / `PlaybackRateMap` boundary / Source Range Planner / dummy candidate projectionを実装する。
-4. `PlaybackRateMap` getterがnon-publicなversion-pinned dependencyはTarget Adapter内へ狭く隔離する。
-5. `ContentLength`から使用Source durationを推定しない。
-6. host fact探索にはNavigator Actionsを使わない。
-7. W1 product integrationができた時点で、Exit claimだけを検証するnative smoke workflowを追加する。
-
-### W2 — Shared Feature Engine
-
-W1の残存Lab確認と並行してYMM4非依存で開始可能。
-
-- primitive Feature schema;
-- deterministic FFmpeg fixture;
-- Session Feature Index / Learning Feature Packの共通input contract;
-- serializer/schema version;
-- Profile evaluatorへ渡す最小model。
-
-W2のpure workはW1 native proofを待たない。
-
-## Do not do yet
-
-- `PlaybackRate2` / `PlaybackRateMap` / 50・100・200% constant positive mappingを再発見するためだけの重複Lab Action;
-- legacy `BaseItem.PlaybackRate`をsource-time Authorityとして実装;
-- `ContentLength`をSource Range consumed lengthとして利用;
-- Heavy ML / OCR / Object Detection導入;
-- Profile自動relabelling;
-- Archive Pluginへの分類UI追加;
-- full native/release suiteの常時実行;
-- 実X4録画やprivate Learning Corpusのrepo commit;
-- W3以降のUIを先行して大規模実装。
-
-## First checkpoint
-
-次の状態になったら最初の大きなcheckpoint:
-
-```text
-Lab: W1残存host factだけがpin済み
-+ Navigator: PlaybackRateMapを隔離したTarget Adapter
-+ Navigator: dummy Source Episode -> exact YMM4 occurrence Jump
-+ W2: deterministic fixtureからprimitive Feature schemaを生成/reload可能
-```
-
-ここまではW1/W2を並行し、その後W3/W4へ進む。
+現在のCore regressionを実行し、変更箇所のnegative testsを追加する。W1を触る場合は記録済みの製品native checkpointを確認してから必要なテストだけ更新する。証拠のsource headと実際のcheckoutを混同しない。

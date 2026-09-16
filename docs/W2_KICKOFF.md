@@ -1,52 +1,21 @@
-# W2 Shared Feature Engine Kickoff
+# W2 Shared Feature Engine — continuation
 
-W2はW1のnative host factを待たずに進められるpure lane。
+最初のW2 CPU sliceは実装・Core regression済み。現在の状態は [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)、形式は [FEATURE_FORMAT.md](FEATURE_FORMAT.md)。初回skeleton作成へ戻らない。
 
-## First slice
+## Existing code
 
-目的は「戦闘Profileを作る」ことではなく、RuntimeとLearningが同じprimitive schemaを共有できる最小engineを作ること。
+`src/Ymm4HighlightNavigator.Core/` にFeatureHeader、immutable Video/Audio primitives、FeaturePack validation、PackStore、FFmpegBackend、salience、Profile evaluator、intervalsを持つ。
 
-最初に固定するmodel:
+Profile名・戦闘/ステーションのSemanticをprimitiveの正本に混ぜない。欠けたfeatureを0やNegativeへ変換せず、schema compatibilityを明示する。Runtime IndexとLearning Packは表現を共有してもlifecycleを分ける。
 
-```text
-FeatureSchemaVersion
-SourceMetadata
-SampleClock / Timestamp
-VisualPrimitiveSample
-AudioPrimitiveSample
-CompactDescriptor (optional field family)
-FeatureSeries
-```
+## Existing acceptance
 
-Profile名・戦闘/ステーション等のSemanticはこの層へ入れない。
+Generated lossless black/white + gated-tone fixtureで、full/trimmed clock、serialize/reload、missing audio、corrupted Pack、backend cancellation/source preservationを検査。正確なケース数/runはチェックポイントを参照。
 
-## Deterministic fixture
+## Next
 
-repoへ巨大動画を置かず、FFmpegで短いfixtureを生成する。
+W3は現在のPackStore/FeaturePackを使い、Folderとpositive membership、sample登録、dedupeを追加する。Pack保存成功はCorpus commitや入力削除の許可ではない。
 
-Fixtureは最低限:
+W2自身の残りは実長尺のサイズ/速度/メモリ測定、別codec/VFR、normalization比較、GPU capability/resize/fallback。tiny scalar queryの300ms目標や実X4品質を短い生成fixtureのPASSから推定しない。
 
-- source time/frameを追跡できる視覚pattern;
-- brightness/contrast/colorの既知変化;
-- stable -> sudden change;
-- short audio beep/burst;
-- silence / steady interval;
-- deterministic duration/timestamps。
-
-## First acceptance
-
-- 同じfixtureから同じprimitive seriesを再現できる;
-- serialize -> reloadで値/schema/timestampが保持される;
-- Session Feature Index表現とLearning Feature Pack表現が同じProfile evaluator inputへ変換できる;
-- missing/incompatible Feature familyを0として扱わない;
-- Semantic Profile scoreをPackへ焼き込むことをAuthorityにしない。
-
-## Not yet
-
-- X4戦闘Profile tuning;
-- Reverse Classification formula;
-- GPU optimization;
-- OCR / Object Detection / optical flow;
-- final binary format optimization。
-
-まずcorrect/shared schemaを作り、サイズ/速度最適化は実測後に行う。
+pure変更はCoreのLinux lane、host/GPU統合だけ必要なnative checkpoint。Heavy ML/OCR/object detectionへ自動拡張しない。

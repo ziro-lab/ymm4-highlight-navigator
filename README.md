@@ -1,88 +1,41 @@
 # YMM4見どころナビ
 
-YukkuriMovieMaker4（YMM4）で、長尺ゲーム録画から「見るべき候補」を軽量Featureの組み合わせで探し、タイムライン上を高速に巡回するTool Pluginです。
+YukkuriMovieMaker4（YMM4）の長尺録画から軽量な映像・音声特徴で候補を探し、複数プロファイルを同時に使ってタイムラインを巡回するTool Plugin。
 
-**現在の状態:** v0.4.0 設計確定・実装準備。Plugin本体はまだ未実装です。
+**現在: W1/W2の最初の実装段階。完成品・一般配布版ではありません。** 機能別の実装範囲と検証結果は [最新チェックポイント](docs/IMPLEMENTATION_STATUS.md) を正本にします。v0.4.0は設計全体の版であり、W1〜W7すべてが完成したことを意味しません。
 
-## 目指す使い方
+## 実装済みの基盤
 
-通常のレビューでは、複数のProfileを同時にONにします。
+- 選択VideoItemを明示的に対象化。選択を変えても対象を勝手に変更せず、位置・速度・素材が変わったら古い対象へのJumpを拒否。
+- 同一録画の重複範囲をまとめてCPUで背景解析。YMM4の生オブジェクトはUIスレッド側に隔離。
+- 映像・音声の汎用特徴、軽量Packの保存・再読込、破損／欠損／スキーマ不一致の検出。
+- 複数プロファイルの独立評価、OR統合、重複区間の整理、帰属情報を残した時系列候補。
+- プロファイルON/OFFと感度変更時は動画を再Decodeせず再検索。
+- 日本語の対象指定・解析・中止・前／次・候補一覧。
 
-```text
-[✓ 戦闘]          30 hit
-[✓ ステーション]  10 hit
-[ ] MAP            18 hit
+現在の初期プロファイルは **映像の急変／音の強い場面／明るい場面** という汎用条件です。「戦闘」「ステーション」を学習済みと偽って表示しません。人間分類フォルダからのCorpus登録、逆分類、改善候補の反映は次の工程です。
 
-候補 36件 / ヒット計 40
-[ ◀ 前 ] [ 次 ▶ ] [ 一覧 ]
-```
+## 目指す運用
 
-Profileは排他的な分類器ではありません。同じ場面が「戦闘」と「ステーション」の両方にHitしてよく、Review Queueでは時間重複だけを統合します。
+録画アーカイブなどで保存した短尺素材を、人間が `X4/戦闘`、`X4/ステーション` などの普通のフォルダに分けます。Navigatorはそこから軽量な学習用特徴を保持し、明示的にプロファイルを改善します。学習後の長尺検索では複数プロファイルを同時ONにし、候補を足して巡回します。
 
-Profileは、人間がざっくり分類した短尺素材から育てます。
+30件と10件の検出ならヒット計40件。同じ時間帯が重なればレビュー候補は例えば36件です。同じ録画をタイムラインで二度使っている場合は、別の使用箇所として保持します。
 
-```text
-録画アーカイブ等で短くなった素材
-  ↓
-人間がフォルダで大分類
-  X4/戦闘
-  X4/ステーション
-  X4/MAP
-  ↓
-YMM4見どころナビでFeature解析
-  ↓
-Persistent Learning Feature Pack
-  ↓
-元教材動画はNavigatorの正本にしない
-  ↓
-既存Profileで説明できないHard Exampleを優先
-  ↓
-Profile改善
-```
+X4は最初の検証対象・Profile Groupであり、製品の対応範囲をX4専用にはしません。
 
-X4 Foundationsは最初に強く育てるProfile Groupですが、製品ScopeはX4専用ではありません。
+## 開発と検証
 
-## Repositoryの役割
+[設計](docs/DESIGN.md) / [実装状況・証拠](docs/IMPLEMENTATION_STATUS.md) / [Roadmap](docs/ROADMAP.md) / [次の着手点](docs/IMPLEMENTATION_KICKOFF.md) / [特徴形式](docs/FEATURE_FORMAT.md)
 
-このRepositoryは**製品本体**の正本です。
+- Core: .NET 10、YMM4非依存。`dotnet run --project tests/Ymm4HighlightNavigator.Core.Tests -c Release -- --out out/core-tests` でpureケースを実行。実FFmpegケースの実行方法は `.github/workflows/core.yml` を参照。証拠出力先は毎回空の専用ディレクトリを使う。
+- Plugin: YMM4 Lite 4.56.1.0を対象に、`YMM4DirPath`を渡してビルド。起動や回帰テストは `.github/workflows/native.yml`。実行条件・結果はチェックポイントを参照。
+- FFmpegの通常配布・ライセンス／更新方針と `.ymme` は未完了。Actions成果物のDLLだけを完成済みインストーラーとして扱わない。テストは一時hostへbackendを配置するが、そのbinaryは成果物に含めない。
+- この実装段階には入力動画の削除機能を入れていない。Pack保存成功だけで削除を許可しない。
 
-```text
-ziro-lab/chat-native-work-lab-001
-  YMM4本体の挙動・API・version差分をProbeして知見を蓄積
-                ↓ verified behavior
-ziro-lab/ymm4-highlight-navigator
-  製品設計・実装・pure test・製品としてのnative regression
-                ↓
-  YMM4 Pluginとして配布・実機確認
-```
+## Repository境界
 
-YMM4自体について未知の挙動が出た場合、このRepositoryで推測や重複実験をせず、まずLabで最小Probeを行います。こちらのGitHub Actionsは、Labで得た事実を使った**Plugin製品としての実機確認**へ絞ります。
+YMM4本体の未確認挙動は [chat-native-work-lab-001](https://github.com/ziro-lab/chat-native-work-lab-001) で最小検証し、[採用Evidence](docs/LAB_REFERENCES.md) をpinします。Navigator側は製品の機能・UI統合を検証します。Lab PASS、製品native PASS、配布・実利用の合格は別です。
 
-録画アーカイブPluginとは密結合しません。アーカイブは録画の保存・再リンクを担当し、教材の分類・学習は本Plugin側の責務です。
+録画アーカイブとは独立したrepo・コード・workflow・一時作業場を使います。分類UIや学習責務をアーカイブへ追加せず、その実験コードをNavigator用に変更しません。知識は共有し、製品コードは密結合させません。
 
-## Current authority
-
-- [設計正本 `docs/DESIGN.md`](docs/DESIGN.md) — v0.4.0 Learning Corpus / Multi-Profile / Reverse Classification
-- [実装開始点 `docs/IMPLEMENTATION_KICKOFF.md`](docs/IMPLEMENTATION_KICKOFF.md)
-- [実装Roadmap `docs/ROADMAP.md`](docs/ROADMAP.md)
-- [開発運用 `docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)
-- [Native検証方針 `docs/NATIVE_VALIDATION.md`](docs/NATIVE_VALIDATION.md)
-- [Lab evidence索引 `docs/LAB_REFERENCES.md`](docs/LAB_REFERENCES.md)
-- [W1 Lab Question Set `docs/W1_LAB_QUESTIONS.md`](docs/W1_LAB_QUESTIONS.md)
-- [W2 Feature Engine Kickoff `docs/W2_KICKOFF.md`](docs/W2_KICKOFF.md)
-- [初期並列lane `docs/BRANCHES.md`](docs/BRANCHES.md)
-
-実装時の優先順位は、ユーザーのCurrent Goal / Material Decision → `docs/DESIGN.md` → LabのCurrent Evidence → 実装都合、の順です。
-
-初期laneは `feature/w1-projection-spine` と `feature/w2-feature-engine`。W1はYMM4 host integration、W2はYMM4非依存Feature Engineとして並行できます。
-
-## Development posture
-
-- cheap Feature first。Heavy ML / OCR / Object DetectionをFirst Valueの必須にしない。
-- Session Feature Index / Persistent Learning Feature Pack / Profileを別lifecycleとして扱う。
-- 人間ラベルをAuthorityにし、逆分類だけで自動relabellingしない。
-- Profile更新はCorpus replay + Preview + explicit Apply。
-- 元動画・ymmpを通常Reviewで破壊変更しない。
-- 教材動画を消費削除する場合は、明示したInboxだけを対象にし、Feature Pack確定・reload検証・sample登録commit後だけ削除する。
-- YMM4 host factの調査はLabへ寄せ、Product Actionを事実探索に浪費しない。
-- W1 integration codeが存在しない現在はnative workflowを置かない。製品claimを証明できる段階でのみNavigator側Actionsを追加する。
+詳細は [AGENTS.md](AGENTS.md)、[開発運用](docs/DEVELOPMENT.md)、[Native検証方針](docs/NATIVE_VALIDATION.md)。

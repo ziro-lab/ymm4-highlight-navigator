@@ -1,135 +1,33 @@
-# W1 Lab Question Set
+# W1 question closure / remaining boundaries
 
-W1でLabへ送るQuestionは、Navigator実装全体ではなく**まだ未確認のhost factだけ**に絞る。
+W1開始前の質問セットは、Recording Archive evidenceと追加navigation-target-context experimentで基本経路が解消した。**同じQ1〜Q4を未調査として再送しない。** 採用元は [LAB_REFERENCES.md](LAB_REFERENCES.md)、製品統合の結果は [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)。
 
-Recording Archive側のLab検証が進み、YMM4 v4.56.1.0について `PlaybackRate2` / `PlaybackRateMap` / constant positive 50・100・200% source-time behaviorは既にNavigatorで採用できるEvidenceになった。詳細は `docs/LAB_REFERENCES.md` をAuthority索引とする。
+## Q1 — Target snapshot / identity
 
-## Already adopted — do not re-probe as discovery
+ADOPTED: public TimelineToolInfo.Timeline、Timeline.VideoInfo.FPS、Timeline.SelectedItems。実装はsession object referenceにNavigatorのsnapshot Guidを対応させ、同じ素材でも別Item occurrenceを維持する。
 
-以下はW1の新規Questionではない。
+選択変更で対象が入れ替わらないこととempty capture時のatomicityはproduct proofに含む。永続的なItem identityやreload/Undo後の同一性は証明していない。別Timelineを受けたらinvalidateし、現在のmembership/parametersをJump前に検査する。
 
-- current rate surfaceは `PlaybackRate2`。legacy `BaseItem.PlaybackRate` は使わない;
-- source-time authorityはYMM4 native `PlaybackRateMap`;
-- constant positive rateで:
+## Q2 — Time projection / rounding
 
-  ```text
-  sourceTime = ContentOffset + itemTime * rate / 100
-  ```
+ADOPTED: PlaybackRate2、native PlaybackRateMap、50/100/200%、offsetを倍率に含めない定速式、inverseのexclusive-end境界。ContentLengthはmedia durationでありusage durationではない。
 
-- `ContentOffset`へrateを掛けない;
-- inverse lookupはtested caseでhalf-open `[0, Length)`;
-- `ContentLength`はSource Range consumed lengthとして使わない;
-- 50 / 100 / 200% `PlaybackRate2` + non-zero `ContentOffset` はnative save/reloadで保持される。
+絶対Timeline frameはItem.Frameを加えて得る。fractional item-local timeには最初の表現可能frameへ切り上げる **product policy** を適用し、native mapで候補内に残るか検査する。Labは一般的なhost roundingを証明したわけではない。
 
-この範囲を確認するためだけの重複Actionは回さない。Product側では採用したbehaviorをintegration regressionとして再確認してよいが、Lab discoveryとproduct acceptanceを混同しない。
+nonzero start/offset、200%と50%の同Source別occurrence、subframe候補、終端を含まない挙動はCore/nativeの該当テストを再利用する。
 
-## Q1 — Target VideoItem snapshot / identity
+## Q3 — Seek / Tool context
 
-Current YMM4 Tool Pluginから、ユーザーが対象として指定したVideoItemを**Target Setとして固定**するための最小surfaceは何か。
+ADOPTED: public Timeline.CurrentFrameのinteger set/readback。product proofでは登録済みの実Toolを表示し、そのmodelの候補Jumpが期待frameへ到達することを確認。
 
-既に再探索しなくてよいsurface:
+callback receiptだけから可視View作成やmenu activationを推定しない。物理マウス/キーボードやdecoderが表示したframeとの照合は別の未証明Claim。現在は受け取ったTimelineだけを対象にし、横断scene巡回を勝手に追加しない。
 
-- FilePath
-- ContentOffset
-- Frame
-- Length
-- PlaybackRate2
+## Q4 — Snapshot lifetime
 
-今回確認するもの:
+selectionとは独立して保持し、Item変更時のstale拒否、adapter.detach/Disposeによる解放を検証。実装はtimeline instance差替えでinvalidateする。
 
-- stable-enough item identity / occurrence identity;
-- Timeline identity;
-- Timeline FPSをどこからAuthorityとして取得するか;
-- selectionから明示Target Setへsnapshotする最小public surface;
-- project / scene / selection lifecycleでidentityがどこまで有効か。
+残る広いacceptance: 実Project reload、scene switch、削除/recreate、Undo/Redo、背景解析中の切替・終了が重なる操作。現在の狭いPASSをこれらの合格へ拡大しない。変更する製品経路に応じて必要なfixtureだけ追加する。
 
-Public APIを優先し、足りない場合はTarget Adapter内へ必要最小限のprivate/reflection boundaryを特定する。
+## Reopen / budget
 
-## Q2 — Timeline frame -> item-local time / rounding
-
-`PlaybackRateMap`による **item-local time <-> source time** は採用済み。
-
-残っているQuestionは、YMM4 Timelineのabsolute frameからitem-local timeへ落とす境界とrounding。
-
-最低ケース:
-
-- nonzero `Item.Frame` / ItemStartFrame;
-- nonzero `ContentOffset`;
-- 100 / 50 / 200% constant positive `PlaybackRate2`;
-- item start / interior / final valid frame;
-- same source multiple occurrences;
-- overlapping source ranges。
-
-確認したいこと:
-
-```text
-Timeline absolute frame
-→ item-local frame/time
-→ PlaybackRateMap.GetSourceTime(...)
-```
-
-とinverse projectionのexact boundary / rounding。
-
-`ContentLength`からusage durationを逆算しない。
-
-## Q3 — Timeline seek / jump
-
-Tool Pluginから、Source Episodeを投影したTimeline occurrenceへYMM4 preview/timelineを移動する最小安全surfaceは何か。
-
-確認するもの:
-
-- target Timelineを選択 / activateする必要があるか;
-- current frame / playheadを設定するpublic surface;
-- scene切替を伴う場合の最小sequence;
-- programmatic seek後に期待frameへ到達したことをmachine-checkする方法。
-
-Programmatic seekと物理UI操作を混同せず、何を実際に証明したかを分離する。
-
-## Q4 — Explicit Target Set stability
-
-Target Set snapshot後にYMM4 selectionが変わっても、NavigatorのTarget Setを黙って差し替えない実装境界を作れるか。
-
-確認するもの:
-
-- selection changeとTarget snapshot lifetimeを分離できるか;
-- scene switch / project reloadでstale identityを検出できるか;
-- stale Targetを別Itemへ誤投影しないための最小signature / invalidation条件。
-
-Host側identity lifetimeに注意する。
-
-## Reuse first
-
-Lab evidenceの優先順:
-
-1. `0b69aed70a3f8a84cc2ede539d794cb4e8108677` — Recording Archive native timing / integrated spine
-2. `84e43c86fac4735225c69a93a001f94ea00a4bda` — initial host-surface discovery
-
-Q1〜Q4のうち、既存experimentが直接証明している部分は再Probeしない。**Navigator固有で不足するClaimだけ**新規Probeする。
-
-## Expected Lab output
-
-各未解決Questionについて:
-
-```text
-PASS / PARTIAL / BLOCKED
-exact YMM4 version
-public/private surface
-observed semantics
-minimal reproducible probe
-known limits
-reopen condition
-```
-
-を残し、Navigator側は `docs/LAB_REFERENCES.md` からpinする。
-
-## CURRENT W1 Lab budget target
-
-新規Lab Actionの主対象は次の3系統へ絞る。
-
-```text
-Target identity / snapshot lifetime
-Timeline absolute frame <-> item-local time / rounding
-Timeline seek / jump
-```
-
-PlaybackRate2 / PlaybackRateMap / 50・100・200% constant positive source-time mappingの再発見にはActionを使わない。
+新host版、未知のhost挙動、既存Evidenceとの矛盾のみLabの新規Questionにする。通常のNavigator実装不具合は製品regression側で直す。variable/reverse再生はCURRENTへ昇格するまで探索を増やさない。既存Archive Probeは変更しない。
