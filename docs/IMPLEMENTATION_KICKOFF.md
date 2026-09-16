@@ -1,6 +1,6 @@
 # Implementation Kickoff
 
-この文書は初回着手点だけを固定する。詳細Authorityは `docs/DESIGN.md` と `docs/ROADMAP.md`。
+この文書は初回着手点だけを固定する。詳細Authorityは `docs/DESIGN.md` と `docs/ROADMAP.md`。YMM4 hostの採用済みEvidenceは `docs/LAB_REFERENCES.md` を索引とする。
 
 ## Immediate next work
 
@@ -8,15 +8,29 @@
 
 Branch: `feature/w1-projection-spine`
 
-1. `docs/LAB_REFERENCES.md` のW1 evidence checklistを棚卸しする。
-2. 既存Lab evidenceで直接証明できないYMM4 host Claimだけを `chat-native-work-lab-001` へ最小Probeする。
-3. Navigator側ではTarget Adapter / immutable snapshot / Source Range Planner / dummy candidate projectionを実装する。
-4. host fact探索にはNavigator Actionsを使わない。
-5. W1 product integrationができた時点で、Exit claimだけを検証するnative smoke workflowを追加する。
+Recording Archive側のLab検証から、YMM4 Lite v4.56.1.0の以下は**実装開始前に採用済み**。
+
+```text
+rate surface        = PlaybackRate2
+source-time authority = PlaybackRateMap
+constant positive   = ContentOffset + itemTime * rate / 100
+inverse boundary    = tested caseで [0, Length)
+ContentLength       = Source Range consumed lengthには使わない
+```
+
+そのためW1はゼロからtiming modelを調べ直さない。
+
+1. `docs/LAB_REFERENCES.md` のADOPTED timing Claimを実装前提として読む。
+2. 未解決の `Target identity / Timeline FPS / absolute frame -> item-local rounding / Timeline seek-jump / Target Set lifecycle` だけを `chat-native-work-lab-001` へ最小Probeする。
+3. Navigator側ではTarget Adapter / immutable snapshot / `PlaybackRateMap` boundary / Source Range Planner / dummy candidate projectionを実装する。
+4. `PlaybackRateMap` getterがnon-publicなversion-pinned dependencyはTarget Adapter内へ狭く隔離する。
+5. `ContentLength`から使用Source durationを推定しない。
+6. host fact探索にはNavigator Actionsを使わない。
+7. W1 product integrationができた時点で、Exit claimだけを検証するnative smoke workflowを追加する。
 
 ### W2 — Shared Feature Engine
 
-W1のLab待ちと並行してYMM4非依存で開始可能。
+W1の残存Lab確認と並行してYMM4非依存で開始可能。
 
 - primitive Feature schema;
 - deterministic FFmpeg fixture;
@@ -28,6 +42,9 @@ W2のpure workはW1 native proofを待たない。
 
 ## Do not do yet
 
+- `PlaybackRate2` / `PlaybackRateMap` / 50・100・200% constant positive mappingを再発見するためだけの重複Lab Action;
+- legacy `BaseItem.PlaybackRate`をsource-time Authorityとして実装;
+- `ContentLength`をSource Range consumed lengthとして利用;
 - Heavy ML / OCR / Object Detection導入;
 - Profile自動relabelling;
 - Archive Pluginへの分類UI追加;
@@ -40,7 +57,8 @@ W2のpure workはW1 native proofを待たない。
 次の状態になったら最初の大きなcheckpoint:
 
 ```text
-Lab: W1で必要なhost factがpin済み
+Lab: W1残存host factだけがpin済み
++ Navigator: PlaybackRateMapを隔離したTarget Adapter
 + Navigator: dummy Source Episode -> exact YMM4 occurrence Jump
 + W2: deterministic fixtureからprimitive Feature schemaを生成/reload可能
 ```
