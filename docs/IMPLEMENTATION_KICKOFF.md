@@ -15,6 +15,9 @@ W1/W2のコードは既にあります。初期のゼロからの実装指示を
 ## 残す境界
 
 - CoreはYMM4を参照しない。hostの生オブジェクト、reflection、DispatcherはPluginのAdapter側。
+- **YMM4のversion番号だけでPluginを拒否しない。** 検証Evidenceはexact versionへpinするが、runtimeは必要なsurface/capabilityが使える限り動作する。
+- YMM4更新で必要API/FFmpeg locator等が変わった場合は、その機能だけfail closedし、`YMM4の更新で依存関係が変更されたため使用できません` 相当の状態を返す。通常の機能失敗をYMM4 processへ未処理例外として逃がさない。
+- optional FFmpeg host assemblyはPlugin load時のhard dependencyにしない。解析開始時にpublic locator capabilityをlazy resolveする。
 - `PlaybackRate2` / `PlaybackRateMap` の採用済み定速意味を再発見しない。
 - 初期プロファイルは汎用条件。実データなしにX4分類精度を主張しない。
 - 他フォルダへの所属はHard Negativeではない。逆分類結果を勝手に正解ラベルにしない。
