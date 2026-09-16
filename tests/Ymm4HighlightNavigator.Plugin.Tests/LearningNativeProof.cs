@@ -36,7 +36,6 @@ internal static class LearningNativeProof
         Task importing = learning.ImportAsync(Ymm4FfmpegLocator.CreateBackend());
         check("learning_busy_actions_disabled", learning.IsBusy && !learning.ImportCommand.CanExecute(null) && !learning.ChooseFilesCommand.CanExecute(null) && learning.CancelCommand.CanExecute(null));
         await importing;
-        // Keep the actual operation result even when the following assertion fails.
         File.WriteAllText(Path.Combine(output, "learning-summary.json"), JsonSerializer.Serialize(new { stage = "intake", learning.Status, learning.LastImport, rows = learning.Rows.ToArray(), corpusRoot = store.Root }, new JsonSerializerOptions { WriteIndented = true }));
         if (learning.LastImport is not { Committed: 2, Failed: 0, Cancelled: 0 })
             throw new InvalidOperationException("Native intake failed: " + learning.Status + "\n" + JsonSerializer.Serialize(learning.LastImport));
@@ -55,8 +54,7 @@ internal static class LearningNativeProof
         var saved = new FilterStore(store).Read(label);
         if (saved == null) throw new InvalidOperationException("Filter save failed: " + learning.Status);
         check("learning_save_persisted", learning.LastSaved is { Revision: 1 } && saved is { Revision: 1 } && navigator.Profiles.Any(p => p.Learned is { Revision: 1 }));
-        // Delete ONLY generated test-owned copies, never the fixture referenced by live Timeline Items.
-        File.Delete(one); File.Delete(two); Directory.Delete(input);
+        File.Delete(one); File.Delete(two); Directory.Delete(input); // Generated test copies only.
         File.Move(paths.FfmpegPath, paths.FfmpegPath + ".learning-disabled");
         try
         {
@@ -67,16 +65,16 @@ internal static class LearningNativeProof
             foreach (var p in navigator.Profiles) p.Enabled = p.Learned != null;
             await navigator.RequeryAsync();
             check("learned_query_without_decoder", navigator.Candidates.Count > 0 && navigator.DecodedRangeCount == 1);
-            navigator.Sensitivity = .5; await navigator.RequeryAsync(); int narrowCount = navigator.Candidates.Count;
-            navigator.Sensitivity = 2; await navigator.RequeryAsync();
-            check("learned_sensitivity_without_decoder", navigator.Candidates.Count > 0 && navigator.DecodedRangeCount == 1);
+            navigator.Sensitivity = .25; await navigator.RequeryAsync(); int narrowCount = navigator.Candidates.Count;
+            navigator.Sensitivity = 2; await navigator.RequeryAsync(); int broadCount = navigator.Candidates.Count;
+            check("learned_sensitivity_without_decoder", narrowCount == 0 && broadCount > narrowCount && navigator.DecodedRangeCount == 1);
             navigator.Sensitivity = 1; await navigator.RequeryAsync(); navigator.Selected = null; navigator.Move(1);
             check("learned_filter_jump", navigator.Selected != null && timeline.CurrentFrame == navigator.Selected.Frame);
             File.WriteAllText(Path.Combine(output, "learning-summary.json"), JsonSerializer.Serialize(new
             {
                 samples = store.Read().Samples.Length, patterns = saved.Patterns.Length,
                 referenceCandidateSamples = learning.Draft!.Coverage.Covered,
-                narrowReviewCount = narrowCount, baselineReviewCount = navigator.Candidates.Count,
+                narrowReviewCount = narrowCount, broadReviewCount = broadCount, baselineReviewCount = navigator.Candidates.Count,
                 rawVideoPresent = false, semanticRecallMeasured = false, filterRevision = saved.Revision
             }, new JsonSerializerOptions { WriteIndented = true }));
         }
@@ -88,7 +86,6 @@ internal static class LearningNativeProof
         File.Delete(bad); window.Close(); await navigator.ReloadSavedFiltersAsync();
         check("learning_close_preserves_review", navigator.Targets.Length == 2 && navigator.Profiles.Any(p => p.Learned is { Revision: 1 }) && !Application.Current.Dispatcher.HasShutdownStarted);
     }
-
     private static bool Capture(LearningModel model, string output, int width, int height)
     {
         var view = new LearningView { DataContext = model, Width = width, Height = height };
