@@ -41,10 +41,8 @@ jobs:
           "YMM4_BUNDLED_FFMPEG=$ffmpeg" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
           "YMM4_BUNDLED_FFPROBE=$ffprobe" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
           New-Item -ItemType Directory -Force out/fixture | Out-Null
-          python tools/fixtures/generate.py --ffmpeg "$ffmpeg" --output out/fixture/lossless.mkv
+          python tools/fixtures/generate.py --ffmpeg "$ffmpeg" --output out/fixture/source.mkv
           if($LASTEXITCODE -ne 0){throw 'Fixture generation failed'}
-          & $ffmpeg -nostdin -hide_banner -loglevel error -i out/fixture/lossless.mkv -c:v libx264 -preset ultrafast -pix_fmt yuv420p -c:a aac out/fixture/source.mp4
-          if($LASTEXITCODE -ne 0){throw 'Host-compatible fixture failed'}
           Get-FileHash $ffmpeg,$ffprobe -Algorithm SHA256 | Format-List | Out-File out/host-backend-hashes.txt
       - name: Build real distribution and separate proof assembly
         shell: pwsh
@@ -64,7 +62,7 @@ jobs:
           Get-FileHash out/distribution/*.dll -Algorithm SHA256 | Format-List | Out-File out/distribution-hashes.txt
       - name: Real YMM4 product regression
         shell: pwsh
-        run: ./tests/Ymm4HighlightNavigator.Plugin.Tests/RunNative.ps1 -Ymm4Dir $env:YMM4_DIR -OutputDir (Join-Path $PWD 'out/evidence') -MediaPath (Join-Path $PWD 'out/fixture/source.mp4')
+        run: ./tests/Ymm4HighlightNavigator.Plugin.Tests/RunNative.ps1 -Ymm4Dir $env:YMM4_DIR -OutputDir (Join-Path $PWD 'out/evidence') -MediaPath (Join-Path $PWD 'out/fixture/source.mkv')
       - name: Independent exact distribution and host-backend gate
         shell: pwsh
         run: |
