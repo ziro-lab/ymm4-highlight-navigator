@@ -2,7 +2,7 @@ name: Navigator native checkpoint
 on:
   workflow_dispatch:
   push:
-    branches: ['feature/w1-projection-spine', 'feature/use-ymm4-bundled-ffmpeg', 'feature/capability-guard-no-crash']
+    branches: ['feature/w1-projection-spine', 'feature/use-ymm4-bundled-ffmpeg', 'feature/capability-guard-no-crash', 'feature/w3-w5-transition-learning']
     paths:
       - 'src/Ymm4HighlightNavigator.Plugin/**'
       - 'tests/Ymm4HighlightNavigator.Plugin.Tests/**'
@@ -41,6 +41,8 @@ jobs:
           "YMM4_BUNDLED_FFMPEG=$ffmpeg" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
           "YMM4_BUNDLED_FFPROBE=$ffprobe" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
           New-Item -ItemType Directory -Force out/fixture | Out-Null
+          & $ffmpeg -version | Out-File out/host-backend-version.txt
+          if($LASTEXITCODE -ne 0){throw 'Bundled backend version could not be recorded'}
           python tools/fixtures/generate.py --ffmpeg "$ffmpeg" --output out/fixture/source.mkv
           if($LASTEXITCODE -ne 0){throw 'Fixture generation failed'}
           Get-FileHash $ffmpeg,$ffprobe -Algorithm SHA256 | Format-List | Out-File out/host-backend-hashes.txt
@@ -81,10 +83,16 @@ jobs:
           name: navigator-native-checkpoint
           path: |
             out/distribution/
-            out/evidence/
+            out/evidence/result.json
+            out/evidence/summary.json
+            out/evidence/learning-summary.json
+            out/evidence/assertions.txt
+            out/evidence/startup.txt
+            out/evidence/*.png
             out-build.txt
             out-proof-build.txt
             out/host-backend-hashes.txt
+            out/host-backend-version.txt
             dotnet-sdks.txt
           if-no-files-found: error
           retention-days: 7

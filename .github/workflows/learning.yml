@@ -1,0 +1,81 @@
+name: Navigator learning core
+on:
+  workflow_dispatch:
+  push:
+    branches: ['feature/w3-w5-transition-learning']
+    paths:
+      - 'src/Ymm4HighlightNavigator.Core/**'
+      - 'tests/Ymm4HighlightNavigator.Learning.Tests/**'
+      - '.github/workflows/learning.yml'
+permissions:
+  contents: read
+concurrency:
+  group: navigator-learning-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  learning:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1
+        with:
+          dotnet-version: '10.0.400'
+      - name: Generated media and environment
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          mkdir -p out
+          ffmpeg -version > out/ffmpeg-version.txt
+          dotnet --info > out/dotnet-info.txt
+          python3 tools/fixtures/generate.py --ffmpeg "$(command -v ffmpeg)" --output out/fixture.mkv
+          ffmpeg -nostdin -v error -i out/fixture.mkv -t 6 -map 0 -c copy out/trim.mkv
+          ffprobe -v error -show_entries 'format=duration,start_time:stream=codec_type,duration:stream_tags=DURATION' -of json out/trim.mkv > out/trim-metadata.json
+      - name: Baseline core regression
+        run: dotnet run --project tests/Ymm4HighlightNavigator.Core.Tests -c Release -- --require-media --ffmpeg "$(command -v ffmpeg)" --ffprobe "$(command -v ffprobe)" --fixture out/fixture.mkv --out out/core-tests
+      - name: Learning build with warnings as errors
+        run: dotnet build tests/Ymm4HighlightNavigator.Learning.Tests -c Release --nologo -warnaserror
+      - name: Intake, transitions, authoring and negative tests
+        run: dotnet run --project tests/Ymm4HighlightNavigator.Learning.Tests -c Release --no-build -- --ffmpeg "$(command -v ffmpeg)" --ffprobe "$(command -v ffprobe)" --fixture out/fixture.mkv --out out/learning-tests
+      - name: Repeat intake on a stream-copy clip with unequal audio and video ends
+        run: dotnet run --project tests/Ymm4HighlightNavigator.Learning.Tests -c Release --no-build -- --ffmpeg "$(command -v ffmpeg)" --ffprobe "$(command -v ffprobe)" --fixture out/trim.mkv --out out/learning-trim-tests
+      - name: Independent required-case, identity and source-domain gate
+        run: |
+          python3 - <<'PY'
+          import base64, hashlib, json, os
+          from pathlib import Path
+          required=json.loads(Path('tests/Ymm4HighlightNavigator.Learning.Tests/required-cases.json').read_text())
+          for folder in ('learning-tests','learning-trim-tests'):
+              r=json.loads(Path(f'out/{folder}/results.json').read_text())
+              assert r['schema']=='navigator.learning-tests.v1' and r['checkout']==os.environ['GITHUB_SHA']
+              ids=[c['id'] for c in r['cases']]
+              assert len(ids)==len(set(ids)) and set(ids)==set(required)
+              assert r['failures']==0 and all(c['passed'] is True for c in r['cases'])
+          old=json.loads(Path('out/core-tests/results.json').read_text())
+          assert old['failures']==0 and len(old['cases'])==27 and all(c['passed'] for c in old['cases'])
+          envelope=json.loads(Path('out/learning-trim-tests/real-media-batch-dedupe-raw-free/corpus/corpus.json').read_text())
+          payload=base64.b64decode(envelope['payload'])
+          assert hashlib.sha256(payload).hexdigest()==envelope['sha256']
+          samples=json.loads(payload)['samples']
+          assert len(samples)==1 and abs(samples[0]['endSeconds']-6.0)<0.001
+          meta=json.loads(Path('out/trim-metadata.json').read_text())
+          duration=float(meta['format']['duration'])
+          assert duration>=6.0
+          print('Stream-copy video domain:',samples[0]['endSeconds'],'container:',duration)
+          print('Learning and baseline independent evidence gate PASS')
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: navigator-learning-evidence
+          path: |
+            out/learning-tests/results.json
+            out/learning-trim-tests/results.json
+            out/core-tests/results.json
+            out/trim-metadata.json
+            out/dotnet-info.txt
+            out/ffmpeg-version.txt
+          if-no-files-found: error
+          retention-days: 7

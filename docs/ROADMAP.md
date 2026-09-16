@@ -1,215 +1,111 @@
 # Implementation Roadmap — v0.4.1
 
-Authority: [DESIGN.md](DESIGN.md) §14。正確なrun/source/未証明範囲は [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)。
+Authority: [DESIGN.md](DESIGN.md) §14。検証済みのsource/run、境界は [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)。
 
 ## Current state
 
-**FIRST WORKING CHECKPOINT / NOT A COMPLETE RELEASE**
+**WORKING INITIAL LEARNING CHECKPOINT / NOT A COMPLETE RELEASE**
 
-- W1 basic Target/Projection/Review spine: implemented, current product native **27 assertions PASS**。
-- W2 CPU primitive/Pack/pure engine: implemented, Core27 cases PASS。YMM4 bundled FFmpeg locator integrationもnative PASS。
-- W4 no-redecode multi-profile runtime: basic path implemented with generic seed Profiles。
-- W3 Transition-aware Corpus intake, W5 Filter authoring/coverage, W6 hard-positive/negative refinement: not implemented yet。
-- W7 real-recording quality/performance/GPU/distribution/user acceptance: open。
+- W1/W2/W4の既存基盤を維持。
+- W3-A非破壊batch取込、W3-B元動画なしでの再利用、W3-C局所Transition抽出を実装。
+- W5の初期Filter生成、複数Pattern OR、教材再判定、試用/保存、Runtime/感度接続まで実装。
+- W6は最小のApply/revision/Positive回帰/rollbackが先行実装済み。Explicit NegativeとContrast/densityはNEXT。
+- W7実素材精度・長尺性能・GPU・配布・ユーザー受入はOPEN。
 
-今回の方針変更は、既存W1/W2/W4を作り直すものではない。**次は「教材動画 → Transition抽出 → Filter生成 → 長尺Review」へ最短で到達する。**
+現在の証拠はBaseline27ケース、Learning35ケースを2種類の生成mediaで実行、実YMM4統合47項目。教材候補一致を実X4のRecall合格へ拡大しない。
 
-## Dependency overview
+## Fixed product direction
 
-```text
-W1 Target / Projection ───────────────────────────────┐
-                                                      ├─> W4 Runtime Review ──────┐
-W2 Shared Feature Engine ─> W3 Corpus+Transition ─> W5 Filter Authoring/Coverage ├─> W6 Refinement
-                                                      └───────────────────────────┤
-                                                                         W7 Real Value / Distribution
-```
+主目的は場面の切り替わりを高速に確認し、見逃しを減らすこと。教材の前後余白も状態変化の手がかりに使う。1 Filterは複数PatternをORで持ち、他Filterと非排他的に併用する。
 
-## Product direction fixed for W3-W6
+教材分類はPositive membership。現Filterで拾えるものは再発見の優先度を下げるが、回帰確認から外さない。他Folder/未所属をHard Negativeへ変えない。NegativeのAuthorityは人間が実際の誤検出を指定したものに限る。
 
-- Primary goal is **Recall / 見逃し低減**。
-- Main learning target is **Transition**: `before → transition → after`。
-- Clip前後の余白はnoise前提ではなく、状態差を見るための教材として使える。
-- 1 Filterは複数Transition PatternをORで持てる。
-- Positive教材は現Filterで再判定し、`Covered Positive / Hard Positive`へ分ける。
-- Covered Positiveは重点学習から外してよいが、Regressionから外さない。
-- Negative Authorityは実際の誤検出に対する人間の`これは違う`。
-- 他Profile corpus / Folder absenceは自動Hard Negativeにしない。
-- Global SensitivityはMain ReviewのPrimary control。変更時に再Decode/再学習しない。
-- Recording Archiveは教材切り出しを楽にする任意ツールで、Navigatorの前提ではない。
+Global SensitivityはMain Reviewで変更しやすく保つ。再Decode/再学習なし。録画アーカイブは任意の教材準備ツールであり、Navigatorへ入れる素材を専用形式へ限定しない。
 
-## W1 — YMM4 Target / Projection Spine — IMPLEMENTED
+## W1 — Target / Projection — basic implemented
 
-**Purpose:** explicit Target Setからcandidateを正しいTimeline occurrenceへJumpする。
+session-local target identity、immutable snapshot、atomic capture、stale rejection、PlaybackRateMap、同じSourceの別occurrence、integer seek、日本語Toolを維持する。
 
-**Baseline:** session-local identity、immutable target snapshot、stale rejection、PlaybackRateMap境界、source-range union、same-source別occurrence、integer seek、日本語Tool。
+YMM4の版番号だけで拒否しない。必要な依存先が使えなければ該当操作の失敗として扱う。検証版固定とruntime互換性は別。
 
-**Compatibility:** YMM4 build番号だけで拒否しない。必要surfaceが変わった場合は該当機能をfail closedし、YMM4 processへ通常の未処理例外を逃がさない。
+残りは実Project reload/scene switch/Undoや解析中の終了など広いlifecycle、physical input、decoded-frame correspondence。
 
-**Remaining:** broader reload/scene/Undo lifecycle、physical input、decoded-frame correspondence。
+## W2 — Shared Feature Engine — CPU implemented
 
-## W2 — Shared Feature Engine — IMPLEMENTED
+FeaturePack/PackStore/FFmpegBackend/FeatureTableをRuntimeと教材で共有する。YMM4同梱backendを遅延解決し、CoreはYMM4非依存。無音と音声なし、schema欠損と0を混同しない。
 
-**Purpose:** RuntimeとLearningが同じsemantic前primitive/schemaを使う。
+stream-copy素材の映像/音声末尾の差に対応し、実際の映像domainをPackに残す。詳細は [FEATURE_FORMAT.md](FEATURE_FORMAT.md)。
 
-**Baseline:** visual/audio primitives、FeaturePack、PackStore、missing-feature compatibility、real FFmpeg child process、generated media、cancel/failure separation。
+長尺/multiple-sourceの性能・メモリ、別codec/VFR/特殊timestamp、GPU resize/fallbackはまだ要評価。現在の短いfixture成功から性能目標達成を推定しない。
 
-Plugin runtimeはYMM4同梱FFmpegをpublic locator capability経由で利用し、独自FFmpeg copy/PATH fallbackを持たない。Coreはexplicit path inputでYMM4非依存。
+## W3 — Learning Corpus + Transition Extraction — initial implemented
 
-**Remaining:** temporal derived featureの拡充、長尺/multiple-source実測、容量/メモリ、GPU resize/fallback、他codec/VFR。
+### W3-A — Non-destructive intake
 
-## W3 — Learning Corpus + Transition Extraction — NEXT
+普通の動画、選択フォルダー直下の動画を一括取込。group/filter名のpreview、source fingerprint、dedupe、複数Positive membership、Pack→reload→catalog commit、partial/error/cancelを実装。
 
-**Purpose:** 普通の動画/Folderを教材としてPersistent Pack化し、各Clipの場面切り替わり候補を再利用可能にする。
+元動画は変更・削除しない。消費型Inboxは後段の独立した所有権/削除transactionであり、この完了範囲には含めない。
 
-### Slice W3-A — Non-destructive batch import
+### W3-B — Raw-video-free replay
 
-- Folder / Group / Filter name preview;
-- fingerprint / dedupe;
-- multiple Positive membership;
-- provenance / schema / extractor version;
-- Pack write → reload validation → sample registration transaction;
-- Partial / Error / Cancelを成功扱いしない。
+元教材を外してPackを再読込し、同じprimitive/TransitionIndexを再構築できる。corrupt/incompatible Packを黙って飛ばして成功率を上げない。
 
-**Exit:** 少数教材を一括Importし、重複取込が安全。
+### W3-C — Transition proposals
 
-### Slice W3-B — Raw-video-free corpus replay
+局所before/transition/afterを生成。複数候補、source time、clip先頭の偽切替防止、余白長が違っても同じ局所patternになることを検証した。
 
-- 元動画を外してCorpus reload;
-- FeatureTable/Profile evaluatorへ再入力;
-- incompatible schemaを明示。
+初期はvisual signature中心。audioは保持されるが学習matcherへ未接続。現候補floor/時間窓/特徴重みのゲーム品質はまだ評価対象。
 
-**Exit:** 元動画なしで同じprimitive/評価入力を再構築できる。
+## W4 — Multi-Filter Review — learned path connected
 
-### Slice W3-C — Transition candidate extraction
+汎用条件と学習Filterを同じ候補投影へ流す。per-filter hit、OR/Union、attribution、別Item occurrence、Timeline順Prev/Next/Listを維持する。
 
-- Clip内部のMaterialなFeature change候補を抽出;
-- clip中央を正解と仮定しない;
-- 1 Clipに複数候補を許す;
-- `before / transition / after` windowを保持;
-- delta rise / histogram change / grid change / audio burst / stability change等を利用。
+学習Filterの試用はsessionだけ。保存版は次回ロードで使える。Global Sensitivityは常時見える位置に置き、同じTransitionIndexを再検索する。Review Presetの永続化と広いlifecycleは残る。
 
-**Exit:** 各Positive Clipから再現可能なTransition候補とwindowを得られる。
+## W5 — Initial Filter authoring / coverage — implemented checkpoint
 
-**Budget:** Core/pure integration中心。YMM4 nativeはhost/UI境界を変えない限り不要。
+### W5-A/B — Candidate and multiple patterns
 
-## W4 — Multi-Profile Runtime Review — BASIC IMPLEMENTED
+観測されたTransition signatureを代表候補として選び、distinct clip supportを見て複数PatternをORにする。既存Patternを保ちながら未検出教材を優先する。全教材を1平均へ潰さない。
 
-**Baseline:** per-Profile hit、OR/Union、overlap merge/attribution、unique candidate vs hit total、Timeline順Prev/Next/List、Global Sensitivity、no-redecode re-query。
+現行の探索上限や固定係数は最初の実装値。Pattern数の上限へ達しても、残りの教材を拾えたことにしない。
 
-**Next integration work:** W5で生成したFilter revisionをRuntimeへ登録して同じQuery pathへ流す。
+### W5-C — Replay
 
-Global Sensitivityは常時見えるPrimary controlとして維持する。
+基準感度1で全Positiveを再評価する。UIは「候補あり（位置未確認）／未検出・重点教材／切替候補なし」。clip-level一致と狙ったTransitionの成功を区別する。既存Patternで拾える教材も回帰に残す。
 
-```text
-低感度 → 厳しく拾う → 候補少なめ
-高感度 → 広く拾う → 見逃しにくい / 候補多め
-```
+### W5-D — Trial / save / runtime
 
-Filter別補正は必要性が確認されるまでMain UIへ増やさない。
+`教材動画 → 候補作成 → 全教材再判定 → 長尺で試用 → 明示保存 → 感度変更 → Prev/Next` の経路は実YMM4で動いた。生成mediaの機能合格であって、実録画に対する製品価値の最終合格ではない。
 
-## W5 — Transition Filter Authoring + Coverage Loop
+## W6 — Explicit Negative / Contrast / quality gate — NEXT
 
-**Purpose:** Positive教材の共通する時間方向変化から実際に使えるTransition Filterを生成する。
+### W6-A — Human false-positive feedback
 
-### Slice W5-A — Initial filter candidate
+Runtime候補へ「これは違う」を追加。その前後Featureと、対象Filter・revision・center/source rangeを保存する。動画再切出しを必須にしない。統合候補の別Filterへ誤ってNegativeを波及させない。取消/修正可能なラベル関係にする。
 
-- 各ClipのTransition候補をalignment;
-- common temporal tendencies抽出;
-- Before / Transition / After条件生成;
-- 最初は最小Patternで開始。
+### W6-B — Refinement
 
-### Slice W5-B — Multiple pattern support
+未検出Positiveを拾う改善を優先し、Explicit Negativeとの局所差を用いて誤検出を減らす。Negative signatureを無条件vetoとして差し引かず、Positiveも落とす提案は採用しない。既に全教材が拾える場合の変更なし判定もここで整理する。
 
-Hard Positiveを既存Patternへ平均するとRecallが落ちる場合、
+### W6-C — Regression / review cost
 
-```text
-Filter: 戦闘開始
-  Pattern A OR Pattern B OR Pattern C
-```
+全PositiveとExplicit Negativeを固定条件で再評価。以前のPositive coverageを守り、Negative hit、長尺candidate density、review time/query costの変化を比較する。たくさん出せば成功という学習へしない。
 
-のように追加Patternへ分ける。
+独立した動画/セッションと確認された期待地点を用いた評価を別に持つ。教材自身へのreplayだけを汎化性能や意味的Recallと呼ばない。全教材への細かい手動指定は通常UXに要求しない。
 
-### Slice W5-C — Positive replay / coverage
+### W6-D — Revision lifecycle
 
-Filter Candidateを全Positiveへ再適用し、
+最小のPreview/Apply/revision/rollbackとstale draft拒否は実装済み。次はNegative/Coverageの整合したsnapshotと密度比較を、この経路へ追加する。保存機構を新規に二重実装しない。
 
-```text
-Covered Positive
-Hard Positive
-```
+## W7 — Real use / performance / distribution — OPEN
 
-を得る。
+実X4のRecall・candidate density・確認時間、3h録画の解析/メモリ/query latency、Pattern増加のコスト、感度の実用性、GPU/software fallback、`.ymme`導入/upgrade、host更新互換性とuser acceptanceを確認する。
 
-学習優先度はHard Positiveを上げ、Covered PositiveはRegressionへ残す。
+通常配布はまだ行っていない。NavigatorはFFmpegを独自配布せず、host bundleを使う。
 
-### Slice W5-D — Runtime trial
+## Next execution and budget
 
-- generated Filter revisionをRuntimeへ登録;
-- 長尺Feature Indexへ適用;
-- Global Sensitivityで候補量を即時調整;
-- 再Decodeなし。
+[IMPLEMENTATION_KICKOFF.md](IMPLEMENTATION_KICKOFF.md) から **W6-A** を開始する。W3/W5を作り直さない。必要に応じて少数の独立した実教材で初期Filterの弱点も確認するが、未提供データを持っている前提では進めない。
 
-**Exit:** `教材動画数本 → Filter生成 → 全Positive再判定 → 長尺へ適用 → 感度調整 → Prev/Next` が一気通貫で動く。
-
-これは最初の大きなFirst Value checkpoint。
-
-## W6 — Hard Positive / Explicit Negative / Revision
-
-**Purpose:** 見逃しと実際の誤検出だけを材料にFilterを育てる。
-
-### Slice W6-A — Explicit Negative feedback
-
-Runtime候補に`これは違う`を追加し、その前後Feature WindowをNegative Authorityとして保存する。動画再切り出しを必須にしない。
-
-### Slice W6-B — Contrast refinement
-
-- Hard Positive coverageを増やす;
-- PositiveにもNegativeにもあるFeatureは識別力を下げる;
-- Positive側に残る差を優先;
-- 他ProfileをHard Negative化しない。
-
-### Slice W6-C — Regression / density gate
-
-Candidate適用前に:
-
-- Covered Positiveを落としていない;
-- Hard Positive coverageが改善;
-- Explicit Negative hitが減る、または悪化しない;
-- 長尺candidate densityがMaterialに悪化しない;
-- query costがMaterialに悪化しない。
-
-Precision最大化は要求しない。**Recallを守りながらReview量を実用域へ下げる。**
-
-### Slice W6-D — Revision lifecycle
-
-- Preview;
-- explicit Apply;
-- new revision;
-- rollback。
-
-**Exit:** 見逃し改善と誤検出低減を繰り返しても既存Positiveを壊さず、前revisionへ戻せる。
-
-## W7 — Real Recording / Performance / Distribution
-
-**Purpose:** 実編集で価値があることと通常配布を成立させる。
-
-評価:
-
-- X4実長尺でRecall / candidate density / review reduction;
-- 3h recordingのingest / memory / query latency;
-- sensitivity操作の実用性;
-- Profile/Pattern数増加時のquery cost;
-- GPU path + software fallback;
-- `.ymme` install / upgrade;
-- supported YMM4更新時のcapability compatibility;
-- hands-on user acceptance。
-
-NavigatorはFFmpeg binaryを配布せず、supported YMM4のhost backendを使う。
-
-Goal到達後にGeneral Profile自動cluster、OCR/Object Detection、Heavy Detectorへ自動拡張しない。
-
-## Next execution
-
-[IMPLEMENTATION_KICKOFF.md](IMPLEMENTATION_KICKOFF.md) に従い、まず **W3-A → W3-B → W3-C** を実装する。W1/W2/W4を再設計しない。
-
-実録画やprivate Corpusをrepoへcommitしない。初期検証はgenerated/synthetic clipでTransitionを再現し、実Archive/手動切り出し教材は後段のreal-value validationへ使う。
+Pure Corpus/Transition/ContrastはLinux中心。host/UIに変更があるcheckpointだけ製品nativeを実行する。hostの未知事実だけLabへ戻し、既存のArchive実験を変更しない。private素材/Corpusやhost binaryをrepoへcommitしない。

@@ -1,82 +1,81 @@
 # YMM4見どころナビ
 
-YukkuriMovieMaker4（YMM4）の長尺録画から軽量な映像・音声特徴で候補を探し、複数フィルターを同時に使ってタイムラインを巡回するTool Plugin。
+YukkuriMovieMaker4（YMM4）の録画から場面の切り替わり候補を探し、複数フィルターと検出感度で絞りながらタイムラインを巡回するTool Plugin。
 
-**現在: W1/W2/W4の基盤実装済み、Transition Filter学習はこれから。完成品・一般配布版ではありません。** 機能別の実装範囲と検証結果は [最新チェックポイント](docs/IMPLEMENTATION_STATUS.md) を正本にします。v0.4.1は設計全体の版であり、W1〜W7すべてが完成したことを意味しません。
+**現在: 教材動画から切り替わりフィルターを作り、試用・保存・候補巡回する初期実装が動作しています。完成品・一般配布版ではありません。** 設計はv0.4.1。実装済み範囲と検証根拠は [チェックポイント](docs/IMPLEMENTATION_STATUS.md) を参照してください。
 
-## 実装済みの基盤
+## 動画からフィルターを作る
 
-- 選択VideoItemを明示的に対象化。選択を変えても対象を勝手に変更せず、位置・速度・素材が変わったら古い対象へのJumpを拒否。
-- 同一録画の重複範囲をまとめてCPUで背景解析。YMM4の生オブジェクトはUIスレッド側に隔離。
-- 映像・音声の汎用特徴、軽量Packの保存・再読込、破損／欠損／スキーマ不一致の検出。
-- 複数Profileの独立評価、OR統合、重複区間の整理、帰属情報を残した時系列候補。
-- Profile ON/OFFとGlobal Sensitivity変更時は動画を再Decodeせず再検索。
-- 日本語の対象指定・解析・中止・前／次・候補一覧。
-- 解析backendはPluginへFFmpegを同梱せず、YMM4自身の同梱 `ffmpeg.exe` / `ffprobe.exe` をhost capability経由で利用する。
-- YMM4のversion番号だけではPluginを拒否しない。依存関係が変わった場合は該当機能をfail closedする方針。
-
-現在の初期Profileは **映像の急変／音の強い場面／明るい場面** という汎用条件です。「戦闘」「ステーション」を学習済みとは扱いません。
-
-## 次に作るもの
-
-主軸は、短尺教材から**場面の切り替わり方**を覚えるTransition Filterです。
+メイン画面の **「動画からフィルターを作る」** から操作します。
 
 ```text
-短尺教材
-→ Feature Pack
-→ before / transition / after の変化候補
-→ Filter Candidate
-→ Positive教材へ再適用
-   ├ Covered Positive
-   └ Hard Positive
-→ 長尺録画へ適用
-→ Sensitivityで候補量を調整
-→ 前 / 次で高速Review
+教材フォルダーを選ぶ / 動画を追加
+→ グループ・フィルター名を確認
+→ 教材を取り込む
+→ フィルター候補を作る
+→ 長尺動画で試す
+→ 保存して使う
 ```
 
-Primary Goalは **Recall / 見逃し低減**。Precision最大化より、見逃しを増やさず候補量を実用域へ下げることを優先します。
+フォルダー選択は、そのフォルダー直下の動画を一括で扱います。子フォルダーまで勝手に同じ分類にはしません。複数ファイルの追加も可能です。取込・特徴解析・フィルター作成は背景処理で、途中で中止できます。
 
-実運用で誤検出した候補は将来 `これは違う` と指定し、その前後FeatureをExplicit NegativeとしてFilter改善へ使います。他Folderや他Profileへの未所属は自動Hard Negativeにしません。
+教材から画面差分・明暗・色・エッジ・ヒストグラム・粗い画面分割の時間方向の傾向を取り出します。動画全体の平均や、クリップ中央だけを正解にする方式ではありません。前の状態、切り替わり、後の状態を比較し、異なる入り方は複数パターンのORとして保持します。
 
-同じFilterでも場面の入り方が複数ある場合は、1つの平均patternへ潰さず `Pattern A OR Pattern B ...` を許します。
+作成結果は教材ごとに **候補あり（位置未確認）／未検出・重点教材／切替候補なし** と表示します。「候補あり」は、その動画のどこかでフィルターが一致したという意味です。狙った切り替わりを正しく発見したという確認や、実録画でのRecall測定とは区別します。
 
-## 教材の準備
+**試用は保存済みフィルターを変更しません。** 「保存して使う」で明示的に反映し、保存前には教材を再判定します。以前拾えていた教材を落とす更新は拒否し、保存後も前の版へ戻せます。教材を追加しただけでフィルターを自動更新することはありません。
 
-普通の動画/Folderをそのまま教材として使えることが前提です。
+## 教材と保存
 
-録画アーカイブPluginは、過去編集から見どころ短尺素材を楽に作れるため相性が良いですが、Navigatorの依存先ではありません。自分で切り出した動画や既存素材も同じ入口で扱います。
+普通の動画や手動で切り出した素材を使えます。録画アーカイブPluginは教材準備を楽にする任意ツールであり、Navigatorの前提でも依存先でもありません。X4も最初の検証対象であって、製品の上限ではありません。
 
-X4は最初の検証対象・Profile Groupであり、製品の対応範囲をX4専用にはしません。
+- **元動画は変更・削除しません。** 内部に元動画を保存し続けることも要求しません。
+- 特徴Pack・分類・フィルターは `%LOCALAPPDATA%\Ymm4HighlightNavigator\Learning` に保存します。
+- 元教材を取り外した後も、保存した特徴からフィルターを再作成・再判定できます。ただし、保存していない新しい特徴を後から復元することはできません。
+- 同一内容・同一解析条件の再取込を検出します。同じ素材に別分類を付ける場合は、既存Packへ分類を追加します。他分類へ入っていることを誤検出教材とは扱いません。
 
-## Runtime Review
-
-メイン画面では常用操作を絞ります。
+## 録画を確認する
 
 ```text
-Filter / Profile ON/OFF
-Global Sensitivity
-candidate / hit count
-Prev / Next / List
+YMM4で動画アイテムを選択
+→ 「選択動画を対象に」
+→ 解析
+→ 使いたいフィルターをON
+→ 検出感度を調整
+→ 前 / 次 / 一覧から候補へ移動
 ```
 
-Sensitivityは高いほど広く拾い、低いほど候補を絞ります。変更で再Decode・再学習しない設計を維持します。
+検出感度はメイン画面に常時置いています。左は厳しく、右は広く拾います。フィルター切替・感度変更では、元動画を再デコードせず保持済みの特徴を再検索します。感度を変えても学習済みフィルター自体は書き換えません。
 
-30件と10件のHitならraw hit totalは40。同じ時間帯が重なればReview候補は例えば36件です。同じ録画をタイムラインで二度使っている場合は別の使用箇所として保持します。
+複数フィルターは独立して同時に使えます。同じ時間帯への重複ヒットはレビュー候補としてまとめ、どのフィルターに一致したかを残します。ヒット計と候補数は別表示です。感度を広げると隣接区間がつながる場合があるため、統合後の候補件数だけが必ず単調に増えるわけではありません。
 
-## 開発と検証
+同じ元録画をタイムラインの複数箇所で使っている場合、解析範囲は共有し、移動先は別の使用箇所として扱います。対象の位置・速度・素材などが変わったら古い情報でジャンプしません。
 
-[設計](docs/DESIGN.md) / [実装状況・証拠](docs/IMPLEMENTATION_STATUS.md) / [Roadmap](docs/ROADMAP.md) / [次の着手点](docs/IMPLEMENTATION_KICKOFF.md) / [特徴形式](docs/FEATURE_FORMAT.md)
+汎用の「映像の急変／音の強い場面／明るい場面」も残していますが、教材から作るフィルターが主軸です。学習済みのX4戦闘・ステーション分類器を標準搭載したという意味ではありません。
 
-- Core: .NET 10、YMM4非依存。`dotnet run --project tests/Ymm4HighlightNavigator.Core.Tests -c Release -- --out out/core-tests` でpureケースを実行。実FFmpegケースの実行方法は `.github/workflows/core.yml` を参照。
-- Plugin: YMM4 Lite 4.56.1.0でnative regression済み。起動や回帰テストは `.github/workflows/native.yml`。検証Evidenceはexact host versionへpinするが、runtime互換はversion番号ではなく必要capabilityで判断する。
-- YMM4 Lite 4.56.1.0では `Resources\bin\x64\ffmpeg\` の同梱backend利用をLabと製品native testの双方で確認済み。Navigator独自のFFmpeg copy、PATH探索、別インストールは不要。
-- `.ymme` の通常導入、upgrade、実利用acceptanceは未完了。Actions成果物のDLLを完成済みインストーラーとして扱わない。
-- 現在の実装にはLearning Corpus intake、Transition Filter authoring、Explicit Negative feedback、入力動画削除機能はまだ入っていない。
+## 今回の検証と残り
 
-## Repository境界
+- 既存Core **27ケース**、学習Core **35ケース**を実行。学習側は通常素材と音声末尾が少し長いstream-copy素材の2条件で確認しました。
+- 実YMM4 Lite4.56.1.0で **47項目**の製品統合テストを実行しました。生成素材の取込→候補生成→試用→保存→元教材なしでの再利用→感度調整→タイムライン移動を含みます。
+- 誤検出を「これは違う」と登録して差を学ぶ機能、独立した実X4素材での精度・レビュー時間評価、長尺負荷/GPU、通常の `.ymme` 導入・upgradeはまだ未完了です。
+- 現行の学習フィルターは画面の変化を中心にした初期方式です。音声情報はPackへ残しますが、学習フィルターの一致判定にはまだ使っていません。学習アルゴリズムの最適値や実ゲームの検出品質を保証するものではありません。
 
-YMM4本体の未確認挙動は [chat-native-work-lab-001](https://github.com/ziro-lab/chat-native-work-lab-001) で最小検証し、[採用Evidence](docs/LAB_REFERENCES.md) をpinします。Navigator側は製品の機能・UI統合を検証します。Lab PASS、製品native PASS、配布・実利用の合格は別です。
+詳しいsource/run/checksumと未証明範囲は [実装状況](docs/IMPLEMENTATION_STATUS.md)。ActionsのDLL成果物を完成済みインストーラーとして扱わないでください。
 
-録画アーカイブとは独立したrepo・コード・workflowを維持します。Archiveは教材準備を楽にする別Pluginであり、Navigatorから分類/学習責務を押し込みません。
+## 開発
+
+[設計](docs/DESIGN.md) / [Roadmap](docs/ROADMAP.md) / [次の着手点](docs/IMPLEMENTATION_KICKOFF.md) / [特徴形式](docs/FEATURE_FORMAT.md)
+
+Coreは.NET10・YMM4非依存です。既存Coreの実行例:
+
+```text
+dotnet run --project tests/Ymm4HighlightNavigator.Core.Tests -c Release -- --out out/core-tests
+```
+
+学習Coreと生成メディアを含む検証方法は `.github/workflows/learning.yml`、実YMM4の製品検証は `.github/workflows/native.yml`。証拠出力先は毎回新しい専用ディレクトリにしてください。
+
+YMM4が同梱するFFmpeg/ffprobeを公開Locator経由で遅延取得します。Navigator独自のFFmpeg同梱・PATH探索・別インストールは不要です。検証環境は特定YMM4版へ固定しますが、実行時にバージョン番号だけで拒否することはありません。依存先が使えない場合は該当操作で失敗を示す方針であり、あらゆる将来のバイナリ互換性やホスト障害への無停止保証ではありません。
+
+YMM4自体の未知の挙動は [Lab](https://github.com/ziro-lab/chat-native-work-lab-001) で最小検証し、[採用Evidence](docs/LAB_REFERENCES.md) を再利用します。製品・UI・配布の検証はNavigator側です。録画アーカイブのコードや実験を変更せず、独立して開発します。
 
 詳細は [AGENTS.md](AGENTS.md)、[開発運用](docs/DEVELOPMENT.md)、[Native検証方針](docs/NATIVE_VALIDATION.md)。

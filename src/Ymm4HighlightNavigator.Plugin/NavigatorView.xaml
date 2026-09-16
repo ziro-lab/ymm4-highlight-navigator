@@ -1,37 +1,40 @@
 <UserControl x:Class="Ymm4HighlightNavigator.Plugin.NavigatorView"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
- xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" MinWidth="300" MinHeight="280">
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" MinWidth="300" MinHeight="320">
  <Grid Margin="12">
   <Grid.RowDefinitions>
    <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
-   <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/>
+   <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/>
   </Grid.RowDefinitions>
-  <WrapPanel Grid.Row="0" Margin="0,0,0,10">
+  <WrapPanel Grid.Row="0" Margin="0,0,0,6">
    <Button x:Name="CaptureButton" Content="選択動画を対象に" Command="{Binding CaptureCommand}" Padding="10,5" Margin="0,0,8,4"/>
    <TextBlock Text="{Binding TargetSummary}" VerticalAlignment="Center"/>
   </WrapPanel>
-  <ItemsControl Grid.Row="1" ItemsSource="{Binding Profiles}" IsEnabled="{Binding CanConfigure}" Margin="0,0,0,8">
-   <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-   <ItemsControl.ItemTemplate><DataTemplate>
-    <CheckBox IsChecked="{Binding Enabled}" Margin="0,0,14,6" VerticalContentAlignment="Center">
-     <StackPanel><TextBlock Text="{Binding Name}"/><TextBlock Text="{Binding Count}" FontSize="11"/></StackPanel>
-    </CheckBox>
-   </DataTemplate></ItemsControl.ItemTemplate>
-  </ItemsControl>
-  <Grid Grid.Row="2" Margin="0,0,0,10" IsEnabled="{Binding CanConfigure}">
+  <Button x:Name="LearningButton" Grid.Row="1" Content="動画からフィルターを作る" Command="{Binding OpenLearningCommand}" HorizontalAlignment="Left" Padding="10,5" Margin="0,0,0,10"/>
+  <ScrollViewer Grid.Row="2" MaxHeight="100" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,0,0,8">
+   <ItemsControl ItemsSource="{Binding Profiles}" IsEnabled="{Binding CanConfigure}">
+    <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+    <ItemsControl.ItemTemplate><DataTemplate>
+     <CheckBox IsChecked="{Binding Enabled}" Margin="0,0,14,6" VerticalContentAlignment="Center">
+      <StackPanel><TextBlock Text="{Binding Name}"/><TextBlock Text="{Binding Count}" FontSize="11"/></StackPanel>
+     </CheckBox>
+    </DataTemplate></ItemsControl.ItemTemplate>
+   </ItemsControl>
+  </ScrollViewer>
+  <Grid Grid.Row="3" Margin="0,0,0,10" IsEnabled="{Binding CanConfigure}">
    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-   <TextBlock Text="狭く" VerticalAlignment="Center"/><Slider Grid.Column="1" Minimum="0.25" Maximum="2" Value="{Binding Sensitivity,Mode=TwoWay}" Margin="8,0" AutomationProperties.Name="検出感度"/><TextBlock Grid.Column="2" Text="広く" VerticalAlignment="Center"/>
+   <TextBlock Text="少なく" VerticalAlignment="Center"/><Slider x:Name="SensitivitySlider" Grid.Column="1" Minimum="0.25" Maximum="2" Value="{Binding Sensitivity,Mode=TwoWay}" Margin="8,0" AutomationProperties.Name="検出感度" ToolTip="左は厳しく、右は広く拾います。動画を再解析せず反映します。"/><TextBlock Grid.Column="2" Text="多く" VerticalAlignment="Center"/>
   </Grid>
-  <WrapPanel Grid.Row="3" Margin="0,0,0,8">
+  <WrapPanel Grid.Row="4" Margin="0,0,0,8">
    <Button x:Name="AnalyzeButton" Content="解析" Command="{Binding AnalyzeCommand}" Padding="14,5" Margin="0,0,6,4"/>
    <Button Content="中止" Command="{Binding CancelCommand}" Padding="10,5" Margin="0,0,14,4"/>
    <Button x:Name="PreviousButton" Content="◀ 前" Command="{Binding PreviousCommand}" Padding="10,5" Margin="0,0,6,4"/>
    <Button x:Name="NextButton" Content="次 ▶" Command="{Binding NextCommand}" Padding="10,5" Margin="0,0,6,4"/>
    <Button Content="選択候補へ" Command="{Binding JumpCommand}" Padding="10,5" Margin="0,0,0,4"/>
   </WrapPanel>
-  <TextBlock Grid.Row="4" Text="{Binding CandidateSummary}" Margin="0,0,0,6"/>
-  <ListBox x:Name="CandidateList" ToolTip="チェック印は移動済みの候補です。映像全体を確認したという判定ではありません。" Grid.Row="5" ItemsSource="{Binding Candidates}" SelectedItem="{Binding Selected}" DisplayMemberPath="Display" MouseDoubleClick="CandidateDoubleClick" ScrollViewer.HorizontalScrollBarVisibility="Auto" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"/>
-  <StackPanel Grid.Row="6" Margin="0,8,0,0">
+  <TextBlock Grid.Row="5" Text="{Binding CandidateSummary}" Margin="0,0,0,6"/>
+  <ListBox x:Name="CandidateList" ToolTip="チェック印は移動済みの候補です。映像全体を確認したという判定ではありません。" Grid.Row="6" ItemsSource="{Binding Candidates}" SelectedItem="{Binding Selected}" DisplayMemberPath="Display" MouseDoubleClick="CandidateDoubleClick" ScrollViewer.HorizontalScrollBarVisibility="Auto" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"/>
+  <StackPanel Grid.Row="7" Margin="0,8,0,0">
    <ProgressBar Minimum="0" Maximum="1" Value="{Binding Progress,Mode=OneWay}" Height="4"/>
    <TextBlock Text="{Binding Status}" TextWrapping="Wrap" Margin="0,6,0,0"/>
   </StackPanel>
