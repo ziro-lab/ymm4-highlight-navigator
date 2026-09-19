@@ -71,8 +71,9 @@ public static class TransitionMatcher
     }
     public static ProfileEvaluation Evaluate(TransitionIndex index, TransitionFilter filter, double sensitivity = 1, CancellationToken token = default)
     {
-        var hits = Match(index, filter, sensitivity, token).Select(m => new TimeRange(Math.Max(index.Header.StartSeconds, m.CenterSeconds - filter.PreRollSeconds), Math.Min(index.Header.EndSeconds, m.CenterSeconds + filter.PostRollSeconds)));
-        return new(filter.Id, true, null, TimeRange.Union(hits).Select(r => new ProfileHit(filter.Id, r)).ToImmutableArray());
+        var hits = Match(index, filter, sensitivity, token).Select(m => new ProfileHit(filter.Id,
+            new(Math.Max(index.Header.StartSeconds, m.CenterSeconds - filter.PreRollSeconds), Math.Min(index.Header.EndSeconds, m.CenterSeconds + filter.PostRollSeconds)), [m.CenterSeconds]));
+        return new(filter.Id, true, null, EpisodeUnion.Build(hits).Episodes.Select(e => new ProfileHit(filter.Id, e.Range, e.AnchorSourceTimes)).ToImmutableArray());
     }
     public static CoverageReport Replay(LearningSet set, TransitionFilter filter, CancellationToken token = default)
     {
