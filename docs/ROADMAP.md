@@ -1,4 +1,4 @@
-# Implementation Roadmap — v0.4.1
+# Implementation Roadmap — v0.4.2
 
 Authority: [DESIGN.md](DESIGN.md) §14。検証済みのsource/run、境界は [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)。
 
@@ -9,7 +9,8 @@ Authority: [DESIGN.md](DESIGN.md) §14。検証済みのsource/run、境界は [
 - W1/W2/W4の既存基盤を維持。
 - W3-A非破壊batch取込、W3-B元動画なしでの再利用、W3-C局所Transition抽出を実装。
 - W5の初期Filter生成、複数Pattern OR、教材再判定、試用/保存、Runtime/感度接続まで実装。
-- W6は最小のApply/revision/Positive回帰/rollbackが先行実装済み。Explicit NegativeとContrast/densityはNEXT。
+- W6は最小のApply/revision/Positive回帰/rollbackが先行実装済み。Explicit NegativeとContrast/densityはまだOPEN。
+- 2026-09-19のLabでSplit/Trim/Move/Duplicate/UndoRedoとmemo Scene shelfのhost挙動を確定。**次はW6より先にW1-R edit-time rebinding、続いてW4-M memo capture**。
 - W7実素材精度・長尺性能・GPU・配布・ユーザー受入はOPEN。
 
 現在の証拠はBaseline27ケース、Learning35ケースを2種類の生成mediaで実行、実YMM4統合47項目。教材候補一致を実X4のRecall合格へ拡大しない。
@@ -22,6 +23,10 @@ Authority: [DESIGN.md](DESIGN.md) §14。検証済みのsource/run、境界は [
 
 Global SensitivityはMain Reviewで変更しやすく保つ。再Decode/再学習なし。録画アーカイブは任意の教材準備ツールであり、Navigatorへ入れる素材を専用形式へ限定しない。
 
+編集後ReviewではSource identity / analyzed source range / Candidate AnchorSourceTimeをAuthorityにし、current Timelineへ都度rebindする。Split/Trim/Move/UndoRedoだけでFeature Indexを捨てない。copy/pasteで同一source rangeが複数存在できるため、occurrence lineageなしの任意jumpは禁止する。
+
+`見どころを確保` は完成尺抽出ではなくmemo shelf。Anchorからdefault30秒（設定可）、pre-rollなし、専用 `見どころメモ` SceneのFrame0へ1Layer1本で置く。元Review Sceneは切り替えない。
+
 ## W1 — Target / Projection — basic implemented
 
 session-local target identity、immutable snapshot、atomic capture、stale rejection、PlaybackRateMap、同じSourceの別occurrence、integer seek、日本語Toolを維持する。
@@ -30,6 +35,29 @@ YMM4の版番号だけで拒否しない。必要な依存先が使えなけれ�
 
 残りは実Project reload/scene switch/Undoや解析中の終了など広いlifecycle、physical input、decoded-frame correspondence。
 
+## W1-R — Edit-time rebinding — NEXT FIRST
+
+Labで確定したhost facts:
+
+- Splitは元VideoItemを左右の新objectへ置換する。
+- head/tail Trimはsame objectを変更する。
+- Moveはsame objectのFrameだけを変えsource rangeを維持する。
+- Undo/Redoはsemantic stateと過去referenceを再導入し得る。
+- Copy/Pasteは同じFilePath + source rangeの別occurrenceを作れる。
+
+実装方針:
+
+- 現TargetAdapterのfrozen snapshot完全一致による全Session staleをやめ、ReviewSourceSession + occurrence lineageへ分離。
+- source file fingerprint/stampのstaleは維持。
+- CandidateへAnchorSourceTimeを追加。Transition Filterは実match centerを使う。
+- Prev/Nextはcapture時Target順 + AnchorSourceTimeの安定順。current Frameは都度projection。
+- known lineage referenceがcurrent Timelineに残る場合はそれを優先。
+- Split replacementは直前bindingのsource/timeline partitionと一致するunambiguous replacementだけ採用。
+- Trim/DeleteでAnchorを含まなくなったcandidateは個別Unavailable/skip。
+- duplicate ambiguityはfail closed。別copyへ勝手に移動しない。
+- positive constant PlaybackRateのcurrent mapで再投影する。unsupported rateは該当projectionだけ使用不可。
+
+Pure testsを先に追加し、最後に製品nativeで `解析 → Jump → Split/Trim/Move → Next` とduplicate guardを確認する。
 ## W2 — Shared Feature Engine — CPU implemented
 
 FeaturePack/PackStore/FFmpegBackend/FeatureTableをRuntimeと教材で共有する。YMM4同梱backendを遅延解決し、CoreはYMM4非依存。無音と音声なし、schema欠損と0を混同しない。
@@ -62,6 +90,28 @@ stream-copy素材の映像/音声末尾の差に対応し、実際の映像domai
 
 学習Filterの試用はsessionだけ。保存版は次回ロードで使える。Global Sensitivityは常時見える位置に置き、同じTransitionIndexを再検索する。Review Presetの永続化と広いlifecycleは残る。
 
+## W4-M — Highlight memo capture — NEXT SECOND
+
+目的は、使えそうなCandidateを本編Timelineから手作業で切る代わりに、開始地点だけをreference Clipとして別Sceneへ確保すること。
+
+初版仕様:
+
+- button: `見どころを確保`
+- selected CandidateのAnchorSourceTimeから開始。review pre-rollは使わない。
+- default30秒、main Reviewで秒数を変更可能。
+- memo VideoItemは100% playbackのreference clip。
+- source終端を越える場合は安全に短縮。
+- Scene名 `見どころメモ`。0件なら作成、1件なら再利用、同名複数ならfail closed。
+- active Review Sceneを保持したままnon-active memo Timelineへ追加。
+- Frame=0固定。
+- memo Scene内でitemが存在しない最小positive Layerを使い、1 memo = 1 Layer。
+- Remark=`見どころナビ｜<Filter names>`。
+- same source+anchorのNavigator memoは二重追加しない。
+- 元Review Item / source mediaを変更しない。FFmpeg cut/re-encodeなし。
+
+Plugin側ではHost-private MainModel lookupを `MemoSceneAdapter` のような狭い境界へ隔離し、CoreへYMM4 objectを持ち込まない。
+
+製品native checkpointではMain active保持、Layer1/2/3、Frame0、30s/別尺、Remark、save/reload、source終端shortening、duplicate memo guardを確認する。
 ## W5 — Initial Filter authoring / coverage — implemented checkpoint
 
 ### W5-A/B — Candidate and multiple patterns
@@ -78,7 +128,7 @@ stream-copy素材の映像/音声末尾の差に対応し、実際の映像domai
 
 `教材動画 → 候補作成 → 全教材再判定 → 長尺で試用 → 明示保存 → 感度変更 → Prev/Next` の経路は実YMM4で動いた。生成mediaの機能合格であって、実録画に対する製品価値の最終合格ではない。
 
-## W6 — Explicit Negative / Contrast / quality gate — NEXT
+## W6 — Explicit Negative / Contrast / quality gate — AFTER W1-R / W4-M
 
 ### W6-A — Human false-positive feedback
 
@@ -106,6 +156,6 @@ Runtime候補へ「これは違う」を追加。その前後Featureと、対象
 
 ## Next execution and budget
 
-[IMPLEMENTATION_KICKOFF.md](IMPLEMENTATION_KICKOFF.md) から **W6-A** を開始する。W3/W5を作り直さない。必要に応じて少数の独立した実教材で初期Filterの弱点も確認するが、未提供データを持っている前提では進めない。
+[IMPLEMENTATION_KICKOFF.md](IMPLEMENTATION_KICKOFF.md) から **W1-R → W4-M → W6-A** の順で進める。W3/W5を作り直さない。必要に応じて少数の独立した実教材で初期Filterの弱点も確認するが、未提供データを持っている前提では進めない。
 
-Pure Corpus/Transition/ContrastはLinux中心。host/UIに変更があるcheckpointだけ製品nativeを実行する。hostの未知事実だけLabへ戻し、既存のArchive実験を変更しない。private素材/Corpusやhost binaryをrepoへcommitしない。
+Anchor/queue identity/lineage判定のpure部分、Corpus/Transition/Contrastはcheap tests中心。host/UIに変更があるW1-R/W4-M checkpointだけ製品nativeを実行する。hostの未知事実だけLabへ戻し、既存のArchive実験を変更しない。private素材/Corpusやhost binaryをrepoへcommitしない。
