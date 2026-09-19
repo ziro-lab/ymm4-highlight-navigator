@@ -66,7 +66,7 @@ Native workflowを作る時は:
 
 を基本形にする。
 
-**W1 integration codeが無い現在は、空のnative workflowを置かない。** 無意味なrunと赤いCIを作らないため、W1実装時にclaimと一緒に追加する。
+W1/W3/W5/W1-Rの製品native laneは実装済み。W1-Rから同一checkoutのPure + media + Learning回帰gateを先行させ、成功時だけWindowsを起動する。未実装機能用の空workflowや、Lab host事実の再探索workflowは追加しない。
 
 ### D. Release proof — sparse/manual
 
@@ -176,6 +176,12 @@ Negative fixture候補:
 - source file mutation still invalidates source Feature authority.
 
 Use the Lab's already-adopted split/trim/move/duplicate/UndoRedo facts. Product native smoke proves only Navigator integration against those facts.
+
+W1-Rのrequired-case一覧は `tests/Ymm4HighlightNavigator.Plugin.Tests/required-native-cases.json`。native runnerは結果全ID・件数・checkout・exact distribution DLL・host backend paths・process生存を独立照合する。`rebinding-summary.json` の完了flag、decode call count、unhandled countも照合する。生成24秒素材でSplit/Trim/Move/Copy/Paste/実emit済みUndoRedo commandを使う。各Nextのsource anchor/current Frame/既読をtraceへ残す。編集中にテスト用ffmpeg.exeを一時退避し、解析Backend呼出回数が増えないことを確認する。
+
+旧 `stale_target_rejected_atomically` は削除して成功数を減らすのでなく、`timeline_move_rebind` と `source_mutation_rejected_atomically` へ意味分解した。曖昧replacementの決定的分岐はCore Pureで、実コピーの誤Jump防止は製品nativeで確認する。失敗runを成功sourceの証拠へ混ぜない。
+
+現行のtested source/runと限界は [W1_R_CHECKPOINT.md](W1_R_CHECKPOINT.md)。物理キー/マウスgesture、通常install/upgrade、ユーザー受入の完了はclaimしない。
 
 ### W4-M — Highlight memo capture
 

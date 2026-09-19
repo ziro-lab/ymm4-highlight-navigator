@@ -4,16 +4,16 @@ Authority: [DESIGN.md](DESIGN.md) §14。検証済みのsource/run、境界は [
 
 ## Current state
 
-**WORKING INITIAL LEARNING CHECKPOINT / NOT A COMPLETE RELEASE**
+**W1-R EDIT-TIME REBINDING CHECKPOINT / NOT A COMPLETE RELEASE**
 
 - W1/W2/W4の既存基盤を維持。
 - W3-A非破壊batch取込、W3-B元動画なしでの再利用、W3-C局所Transition抽出を実装。
 - W5の初期Filter生成、複数Pattern OR、教材再判定、試用/保存、Runtime/感度接続まで実装。
 - W6は最小のApply/revision/Positive回帰/rollbackが先行実装済み。Explicit NegativeとContrast/densityはまだOPEN。
-- 2026-09-19のLabでSplit/Trim/Move/Duplicate/UndoRedoとmemo Scene shelfのhost挙動を確定。**次はW6より先にW1-R edit-time rebinding、続いてW4-M memo capture**。
+- 2026-09-19のLabでSplit/Trim/Move/Duplicate/UndoRedoとmemo Scene shelfのhost挙動を確定。W1-Rの実装・検証は [W1_R_CHECKPOINT.md](W1_R_CHECKPOINT.md) を参照。**次はW4-M memo capture、W6はその後**。今回W4-M/W6へは進まない。
 - W7実素材精度・長尺性能・GPU・配布・ユーザー受入はOPEN。
 
-現在の証拠はBaseline27ケース、Learning35ケースを2種類の生成mediaで実行、実YMM4統合47項目。教材候補一致を実X4のRecall合格へ拡大しない。
+最新の正確なsource/run別証拠は [W1_R_CHECKPOINT.md](W1_R_CHECKPOINT.md)。Baseline27、Learning35×2条件とW1-R専用Pure/製品nativeを区別する。教材候補一致を実X4のRecall合格へ拡大しない。
 
 ## Fixed product direction
 
@@ -29,13 +29,13 @@ Global SensitivityはMain Reviewで変更しやすく保つ。再Decode/再学�
 
 ## W1 — Target / Projection — basic implemented
 
-session-local target identity、immutable snapshot、atomic capture、stale rejection、PlaybackRateMap、同じSourceの別occurrence、integer seek、日本語Toolを維持する。
+session-local target identity、immutable source session、atomic capture、source-mutation stale rejection、PlaybackRateMap、同じSourceの別occurrence、integer seek、日本語Toolを維持する。
 
 YMM4の版番号だけで拒否しない。必要な依存先が使えなければ該当操作の失敗として扱う。検証版固定とruntime互換性は別。
 
 残りは実Project reload/scene switch/Undoや解析中の終了など広いlifecycle、physical input、decoded-frame correspondence。
 
-## W1-R — Edit-time rebinding — NEXT FIRST
+## W1-R — Edit-time rebinding — implemented checkpoint
 
 Labで確定したhost facts:
 
@@ -45,7 +45,7 @@ Labで確定したhost facts:
 - Undo/Redoはsemantic stateと過去referenceを再導入し得る。
 - Copy/Pasteは同じFilePath + source rangeの別occurrenceを作れる。
 
-実装方針:
+実装済みの方針:
 
 - 現TargetAdapterのfrozen snapshot完全一致による全Session staleをやめ、ReviewSourceSession + occurrence lineageへ分離。
 - source file fingerprint/stampのstaleは維持。
@@ -57,7 +57,8 @@ Labで確定したhost facts:
 - duplicate ambiguityはfail closed。別copyへ勝手に移動しない。
 - positive constant PlaybackRateのcurrent mapで再投影する。unsupported rateは該当projectionだけ使用不可。
 
-Pure testsを先に追加し、最後に製品nativeで `解析 → Jump → Split/Trim/Move → Next` とduplicate guardを確認する。
+Pure → 製品nativeの同一source gateを実装。結果とunsupported境界は [W1_R_CHECKPOINT.md](W1_R_CHECKPOINT.md) を参照。
+
 ## W2 — Shared Feature Engine — CPU implemented
 
 FeaturePack/PackStore/FFmpegBackend/FeatureTableをRuntimeと教材で共有する。YMM4同梱backendを遅延解決し、CoreはYMM4非依存。無音と音声なし、schema欠損と0を混同しない。
@@ -86,11 +87,11 @@ stream-copy素材の映像/音声末尾の差に対応し、実際の映像domai
 
 ## W4 — Multi-Filter Review — learned path connected
 
-汎用条件と学習Filterを同じ候補投影へ流す。per-filter hit、OR/Union、attribution、別Item occurrence、Timeline順Prev/Next/Listを維持する。
+汎用条件と学習Filterを同じ候補投影へ流す。per-filter hit、OR/Union、attribution、別Item occurrence、capture時Target順 + AnchorSourceTime順のPrev/Next/Listを維持する。
 
 学習Filterの試用はsessionだけ。保存版は次回ロードで使える。Global Sensitivityは常時見える位置に置き、同じTransitionIndexを再検索する。Review Presetの永続化と広いlifecycleは残る。
 
-## W4-M — Highlight memo capture — NEXT SECOND
+## W4-M — Highlight memo capture — next / not implemented in W1-R
 
 目的は、使えそうなCandidateを本編Timelineから手作業で切る代わりに、開始地点だけをreference Clipとして別Sceneへ確保すること。
 
@@ -98,9 +99,7 @@ stream-copy素材の映像/音声末尾の差に対応し、実際の映像domai
 
 - button: `見どころを確保`
 - selected CandidateのAnchorSourceTimeから開始。review pre-rollは使わない。
-- default30秒、main Reviewで秒数を変更可能。
-- memo VideoItemは100% playbackのreference clip。
-- source終端を越える場合は安全に短縮。
+- 長さはdefault30秒（ユーザー設定可）。素材末尾で短縮。
 - Scene名 `見どころメモ`。0件なら作成、1件なら再利用、同名複数ならfail closed。
 - active Review Sceneを保持したままnon-active memo Timelineへ追加。
 - Frame=0固定。
@@ -116,7 +115,7 @@ Plugin側ではHost-private MainModel lookupを `MemoSceneAdapter` のような�
 
 ### W5-A/B — Candidate and multiple patterns
 
-観測されたTransition signatureを代表候補として選び、distinct clip supportを見て複数PatternをORにする。既存Patternを保ちながら未検出教材を優先する。全教材を1平均へ潰さない。
+観測されたTransition signatureを代表候補として選び、distinct clip supportを見て複数PatternをORにする。既存Patternを保ち、未検出教材を優先する。全教材を1平均へ潰さない。
 
 現行の探索上限や固定係数は最初の実装値。Pattern数の上限へ達しても、残りの教材を拾えたことにしない。
 
@@ -156,6 +155,6 @@ Runtime候補へ「これは違う」を追加。その前後Featureと、対象
 
 ## Next execution and budget
 
-[IMPLEMENTATION_KICKOFF.md](IMPLEMENTATION_KICKOFF.md) から **W1-R → W4-M → W6-A** の順で進める。W3/W5を作り直さない。必要に応じて少数の独立した実教材で初期Filterの弱点も確認するが、未提供データを持っている前提では進めない。
+W1-R checkpoint後は [IMPLEMENTATION_KICKOFF.md](IMPLEMENTATION_KICKOFF.md) の **W4-M → W6-A**。このW1-R作業では実装しない。W3/W5を作り直さない。必要に応じて少数の独立した実教材で初期Filterの弱点も確認するが、未提供データを持っている前提では進めない。
 
 Anchor/queue identity/lineage判定のpure部分、Corpus/Transition/Contrastはcheap tests中心。host/UIに変更があるW1-R/W4-M checkpointだけ製品nativeを実行する。hostの未知事実だけLabへ戻し、既存のArchive実験を変更しない。private素材/Corpusやhost binaryをrepoへcommitしない。
