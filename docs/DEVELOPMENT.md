@@ -66,6 +66,12 @@ W4 Multi-Profile   W5 Reverse Classification
 Runtime Review      (needs usable Profiles/Corpus)
         └──────┬───────┘
                ↓
+        W5 Initial Filter authoring
+               ↓
+        W1-R Edit-time rebinding
+               ↓
+        W4-M Highlight memo capture
+               ↓
         W6 Profile Refinement
                ↓
         W7 Distribution / First Value
@@ -82,6 +88,8 @@ W1のhost probe待ちでも、YMM4非依存のFeature primitive、Pack schema、
 - `feature/w3-learning-corpus`
 - `feature/w4-multi-profile-review`
 - `feature/w5-reverse-classification`
+- `feature/w1r-edit-time-rebinding`
+- `feature/w4m-highlight-memo-capture`
 - `feature/w6-profile-refinement`
 - `feature/w7-distribution`
 
@@ -103,6 +111,8 @@ PRには最低限:
 YMM4を起動せず確認できるものはここで閉じる。
 
 - source range / timing math after host semantics are fixed;
+- Candidate AnchorSourceTime / stable review order;
+- occurrence lineage replacement selection / ambiguity rejection;
 - Feature primitive calculations;
 - Feature Pack serialization/schema compatibility;
 - fingerprint/dedupe behavior;
