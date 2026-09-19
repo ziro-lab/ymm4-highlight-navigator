@@ -176,11 +176,13 @@ Navigator採用ルール:
 | FilePath/Frame/Length/ContentOffset/PlaybackRate2 | ADOPTED; TargetAdapterで使用 |
 | Timeline FPS / selected VideoItems / integer playhead | ADOPTED on4.56.1.0 / observed60fps |
 | Native constant-positive source mapping | ADOPTED; raw mathだけをhost証明の代用にしない |
-| Explicit Target Set | implemented; selection-independent snapshot / stale rejection product tests |
+| Explicit Target Set | implemented baseline; selection-independent captureは維持。strict stale projectionはW1-Rでedit-aware rebindへ置換予定 |
 | Fractional rounding | product ceiling policy + native map validation |
 | Visible product Tool / compiled XAML | product native checkpoint; Lab callbackのみから推定しない |
 | YMM4 bundled FFmpeg / ffprobe locator | ADOPTED + product native integration PASS |
-| Reload/Undo/scene-switch完全lifecycle | broader acceptance still open; referencesを永続化しない |
+| Split/Trim/Move/UndoRedo host lifecycle | Lab ADOPTED on4.56.1.0; Navigator product rebindingはW1-Rで未実装 |
+| Memo Scene create/reuse/non-active add/save-reload | Lab ADOPTED on4.56.1.0; Navigator product buttonはW4-Mで未実装 |
+| Project reload / arbitrary scene switch complete product lifecycle | broader acceptance still open; live object refsを永続ID扱いしない |
 | Physical input / decoded preview-frame correspondence | NOT PROVEN |
 | Variable/reverse playback, other host versions | OUT OF VERIFIED SCOPE |
 
