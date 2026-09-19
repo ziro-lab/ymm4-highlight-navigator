@@ -85,6 +85,90 @@ Navigatorの採用ルール:
 
 補足: YMM4 4.56.1.0同梱FFmpegはnative fixture作成時に `libx264` encoderを提供しなかったため、product regression fixtureは同梱backendが生成可能なFFV1/PCM MKVへ変更した。これは解析backendのdecode/read capability不足を意味しない。Navigatorのfeature extractionはencoderを要求しない。
 
+## VideoItem split lifecycle — ADOPTED for edit-time rebinding
+
+- Lab merge commit: `6ec7e54ef4b398322b6eabeee0daa2e97841306f`
+- Experiment: `experiments/ymm4/videoitem-split-lifecycle`
+- Tested source head: `1041e9300ce134c23359dcfa3d4aba8512881aa6`
+- Exact host: YMM4 Lite **4.56.1.0**
+- Host ZIP SHA256: `49c0ed689f545737b7ce939971bfc625962e00791c57883dc8e6f058aa336c5a`
+- Run: `35359881285`; job `105648639203`
+- Artifact: `10554237891`; ZIP SHA256 `2d77175964a67675b1b53fc83274b93f9317678b84194cb1c4efa423b41ecd3f`
+- **23 required assertions PASS**
+
+採用する内容:
+
+1. `Timeline.CanSplitSelectedAndGroupedItems(int)` / `SplitSelectedAndGroupedItems(int, ItemSplitSelectionMode)` がtested hostのpublic split surface。
+2. VideoItem splitは元objectを残さず、左右とも新しいVideoItemへ置換する。
+3. 左右は元Timeline区間をgap/overlapなしでpartitionし、FilePathとconstant positive PlaybackRate2を保持する。
+4. 左は元ContentOffsetを保持し、右はcutまでに消費したsource timeだけContentOffsetが進む。
+5. 50/100/200%で同じsource-time則を確認。100%の二回目splitでは対象pieceだけが再置換され、非対象pieceは残る。
+
+Navigatorでは**object referenceをcandidate authorityにしない**。split後はsource identity + source timeから現在のpieceへrebindする。これはFeature Indexの再Decode要求を意味しない。
+
+未証明: physical split gesture、save/restart identity、variable/reverse rate、Navigator製品実装。
+
+## VideoItem trim / move / duplicate / Undo-Redo lifecycle — ADOPTED for edit-time rebinding
+
+- Lab merge commit: `5748cc3f691ca4029e701c5fef0d145ff0d4ee2f`
+- Experiment: `experiments/ymm4/videoitem-edit-rebinding`
+- Tested source/runner contract: `df92cf66d64b3beea3b7e4fc4324539a6f373d27`
+- Exact host: YMM4 Lite **4.56.1.0**
+- Run: `35424106866`; job `105846989339`
+- Artifact: `10578391490`; ZIP SHA256 `97e51bbed4ba6d3a04e31462710ed8dd40a241a9f54e54096cd7a84018d057e7`
+- **25 required assertions PASS**, build Warning0 / Error0
+
+採用する内容:
+
+1. head trimはsame VideoItem referenceのままFrame/Length/ContentOffsetを変更する。
+2. tail trimはsame referenceのままLengthを短縮し、source startは保持する。
+3. split後pieceのmoveはsame referenceのままFrameを変更し、FilePath/Length/ContentOffset/rateは保持する。
+4. real copy/pasteで**別objectなのにFilePath + ContentOffset + Length + rateが同一**のoccurrenceを複数作れる。したがってsource identity + source timeだけではTimeline occurrenceを一意に決められない。
+5. splitがemitした実UndoRedo commandでは、Undoで元semantic itemへ戻り、observed cycleでは元referenceも復帰。Redoでsplit semanticへ戻り、observed cycleでは以前の左右referenceが再利用された。
+
+Navigator採用ルール:
+
+- current Timeline状態を都度再bindする。frozen Frame/Length/Offset snapshot一致を編集後Jumpの必須条件にしない。
+- trimでcandidate anchorが現在のsource rangeから外れた場合は、そのcandidateだけUnavailable/skipにし、Session全体を捨てない。
+- move後はcached Timeline Frameを使わず再投影する。
+- copy/paste ambiguityへ備え、Review targetごとのoccurrence lineage/discriminatorを持つ。source+timeだけで任意のcopyへjumpしない。
+- source file自体が変わった場合は別問題であり、Feature Index stale判定を維持する。
+
+未証明: physical trim/move、physical Ctrl+Z/Ctrl+Y route、全edit種別のUndoRedo、project restart、variable/reverse rate、duplicate lineageの製品選択policy。
+
+## Highlight memo Scene shelf — ADOPTED for 「見どころを確保」
+
+- Lab merge commit: `3cf8b65a554a9f1d5e1b58086e7bfbd1004ec7ed`
+- Experiment: `experiments/ymm4/highlight-memo-scene`
+- Behavior source head: `aa934561ff20f38f2e20c79763be110b7ee1b87e`
+- Documentation/revalidation head: `3662efddebe4c578f5602d5581a7b5000964c17d`
+- Exact host: YMM4 Lite **4.56.1.0**
+- Behavior run: `35430972362`; job `105865350826`; **37 required assertions PASS**
+- Artifact: `10580383042`; ZIP SHA256 `441c596b35cda229043a5abb68c9488f3b2e13324be08be6b8526a96f01cd535`
+- Documentation revalidation run: `35431074898`; artifact `10580313712`; ZIP SHA256 `ea25c71276efdf4f049e49909e1c2055d848c7883d24a612f833924120c9a5b5`
+
+採用する内容:
+
+1. tested hostのpublic scene routeは `MainModel.Scenes` / `CreateNewScene()` / `SelectScene(Timeline)` と `Timeline.TryAddItems(...)`。
+2. `見どころメモ` Sceneを1つ作り、後のensureで同じTimelineを再利用できる。
+3. Mainをactiveのまま、**non-active memo Timelineへ直接VideoItemを追加できる**。追加してもMain active stateと元review VideoItemのproperties/object referenceは変わらない。
+4. 複数VideoItemをすべて**Frame 0**に置き、Layer 1/2/3のようにLayerだけ分けて共存できる。
+5. 30s/30s/12sを混在させて保存再読込できるため、memo durationはhost固定ではなく製品設定にできる。
+6. FilePath / ContentOffset / Length / PlaybackRate2 / Japanese Remark / Layer / Frameがnative save/load roundtripで維持される。
+7. memo Timeline Guidもroundtripで維持された。
+
+Navigator採用ルール:
+
+- 「見どころを確保」はmedia fileを切らない。Candidateのsource anchorから短いVideoItem referenceを作る。
+- memo clipはpre-rollなし、**AnchorSourceTimeから開始**する。
+- 初期default capture durationは30秒、ユーザー変更可。source終端を越える場合は安全に短縮する。
+- memo Timelineでは全clipをFrame0へ置き、1 memo = 1 Layer。既存itemと衝突しない最小の空きpositive Layerを初期allocation policyとする。
+- Remarkは `見どころナビ｜<hit Filter names>` を基本形にする。
+- memo Scene作成/取得で0件なら作成、1件なら再利用、同名複数ならsilentに選ばずfail closedする。
+- Product側でMainModel取得に必要なhost-private accessは狭いMemo/Project adapterへ隔離する。
+
+未証明: physical Layer ON/OFF、source relocation/deletion、Navigator buttonのatomic UndoRedo、最終UI/duplicate memo policy、future host version。
+
 ## W1 status after implementation
 
 | Claim | Status / boundary |
