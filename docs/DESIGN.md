@@ -1,7 +1,7 @@
-# YMM4見どころナビ v0.4.1
-## Transition Filter Learning / Recall-First Review / Multi-Profile Union
+# YMM4見どころナビ v0.4.2
+## Transition Filter Learning / Edit-While-Review Rebinding / Highlight Memo Shelf
 
-**Entry:** v0.4.0 Learning Corpus / Multi-Profile設計を継承し、2026-09-17に確定した「場面切り替わり中心・Recall優先・動画からFilter生成」の方針をMaterial Deltaとして統合する。  
+**Entry:** v0.4.1 Transition Filter Learning / Recall-First Reviewを継承し、2026-09-19に確定した「編集しながら候補巡回を継続する」「使えそうな開始地点を別Sceneへメモとして確保する」方針をMaterial Deltaとして統合する。  
 **Product name:** **YMM4見どころナビ**。X4は第一Profile Group / 初期検証対象であり、製品Scopeそのものではない。  
 **Target:** YMM4上で長尺録画を軽量Featureへ変換し、過去の短尺教材から作ったTransition Filterを含む複数Filterを高速適用して、編集で確認すべき場面切り替わり候補を前/次で巡回するTool Plugin。
 
@@ -26,6 +26,8 @@ Priority:
 7. 複数Filterを同時ONにして候補をUnionできること
 8. 安いFeatureで成立させ、Heavy AIをFirst Value必須にしないこと
 9. YMM4本体・元動画・ymmpを不必要に変更しないこと
+10. 分割・Trim・Move・Undo/Redo後も、元Sourceが有効なら解析済みFeatureを再利用してReviewを継続できること
+11. 使えそうな候補を本編から切断せず、開始地点が分かる短いメモClipとして別Sceneへ即時確保できること
 
 本製品は「面白さをAIが判定する」ものではない。主役は**状態分類ではなくTransition detection**。
 
@@ -76,7 +78,22 @@ Filter/Profileは非排他的。同時ONし、HitをOR / Unionする。重複Epi
 **D-15 — Safe host compatibility**  
 YMM4のversion番号だけではPluginを拒否しない。必要surfaceが使える限り動かし、依存変更時は該当機能だけfail closedする。通常の機能失敗をYMM4 processへ未処理例外として逃がさない。
 
-# 3. TWO FLOWS
+**D-16 — Source-time authority for edit-while-review**  
+解析済みSessionの正本は「最初のVideoItem object」ではなく、Source identity / analyzed source range / Feature Index / Candidate source time。Split・Trim・Move・Undo/RedoでTimeline Item構成が変わっても、source fileと必要source coverageが有効ならFeature Indexを捨てない。Jump時にcurrent Timelineへ再bindする。
+
+**D-17 — Candidate AnchorSourceTime**  
+CandidateはReview用の広いTimeRangeに加えて、実際のhit瞬間を表す `AnchorSourceTime` を持つ。Transition Filterはmatched Transition centerをAnchorとする。Prev/Nextの安定順序はcapture時Target順 + AnchorSourceTimeをAuthorityにし、編集後のcurrent Timeline Frameで候補順を勝手に並べ替えない。current FrameはJump/display用projection。
+
+**D-18 — Occurrence lineage / ambiguity guard**  
+同一Source・同一SourceRangeはcopy/pasteで複数Timeline occurrenceになり得る。Source+timeだけで任意のcopyへJumpしない。最初にReview対象へ固定したoccurrenceのlineageを追い、known referenceが残るeditはそれを優先する。Splitのようにreferenceが置換される場合は直前bindingのsource/timeline partitionからunambiguousなreplacementだけをlineageへ採用し、曖昧ならfail closedする。
+
+**D-19 — Highlight memo shelf**  
+`見どころを確保` は完成尺の自動切り抜きではなく、使えそうな開始地点を後で確認できる軽量memo。専用Scene `見どころメモ` をcreate/reuseし、全memo ClipをTimeline **Frame 0**へ置き、**1 memo = 1 Layer**で縦に並べる。Review中のactive Sceneは切り替えず、元の長尺ItemをSplit/Trim/Moveしない。
+
+**D-20 — Memo capture semantics**  
+memo ClipはCandidate `AnchorSourceTime` から開始し、前余白を付けない。初期default durationは30秒、ユーザーが秒数を変更できる。初版は100% playbackの参照Clipとし、source終端を越える場合だけ短縮する。Layerはmemo Scene内で既存Itemがない最小のpositive Layerを使う。Remarkは `見どころナビ｜<hit Filter names>` を基本形にし、同じsource+anchorのNavigator memoは重複追加しない。
+
+# 3. PRODUCT FLOWS
 
 ## 3.1 Runtime Review
 
@@ -136,6 +153,51 @@ Corpus Replay / Candidate-density check
   ↓ explicit Apply
 New Filter Revision
 ```
+
+## 3.3 Edit-while-review / Highlight Memo
+
+```text
+Long recording / Target Set
+  ↓ one-time source Feature analysis
+Candidate
+  ├─ Review Range
+  ├─ AnchorSourceTime
+  └─ Filter attribution
+  ↓
+Prev / Next
+  ↓
+current Timeline occurrence rebind
+  ↓
+Jump
+  ↓
+user edits YMM4
+  ├─ Split
+  ├─ Trim
+  ├─ Move
+  └─ Undo / Redo
+  ↓
+next navigation rescans/rebinds current occurrence lineage
+  ↓
+Feature Index reuse; no re-decode for Timeline-only edits
+```
+
+候補が現在のlineage内source rangeからTrim/Deleteされて消えた場合は、そのCandidateだけUnavailableとしてskipする。Session全体をstaleにしない。source file自体の変更や必要Feature coverageの欠落は別のstale条件。
+
+使えそうな候補では:
+
+```text
+Candidate AnchorSourceTime
+  ↓ [見どころを確保]
+resolve/create 「見どころメモ」 Scene
+  ↓
+Frame 0 / next free Layer
+  ↓
+configured duration (default 30s)
+  ↓
+Remark = hit Filter names
+```
+
+これはmedia export/cutではなく、元Sourceを参照する短いVideoItemを別Sceneへ追加する操作。FilterのReview Rangeにあるpre-rollはmemo開始位置へ持ち込まない。
 
 # 4. FILTER / PROFILE MODEL
 
@@ -342,6 +404,10 @@ Target AdapterへYMM4 identity / timing / seek依存を隔離する。
 - native PlaybackRateMapでsource timeを確認
 - ContentLengthをsource usage length推定へ使わない
 - 同じSourceの別Item occurrenceは別Candidate projection
+- current Frame/Length/ContentOffsetの完全一致を編集後projectionのAuthorityにしない
+- split/trim/move/undo後はReview occurrence lineageからcurrent Itemを再bindする
+- source+timeだけでduplicate occurrenceを一意選択しない
+- CandidateはReview RangeとAnchorSourceTimeを分ける
 - CURRENTは正の一定PlaybackRate
 
 採用済みhost事実はLab evidenceをAuthorityとし、未知事項だけLabへ戻す。
@@ -369,6 +435,9 @@ Primary controls:
 
 候補 36件 / ヒット計 40
 [ ◀ 前 ] [ 次 ▶ ] [ 一覧 ]
+
+確保時間 [ 30 ] 秒
+[ ★ 見どころを確保 ]
 ```
 
 常時見せるもの:
@@ -377,10 +446,13 @@ Primary controls:
 - Global Sensitivity
 - candidate / hit count
 - Prev / Next / List
+- 見どころを確保 / capture duration
 
 Filter内部threshold、Pattern詳細、Feature名は通常Reviewへ常時露出しない。
 
 Filter別Sensitivity補正は必要になった場合のみ詳細surfaceへ追加する。
+
+「見どころを確保」はselected Candidateがcurrent review sourceへ解決できる時だけ有効。成功時はactive review Sceneを変えず、memo Layer番号を短く通知する。Candidateはcurrent sessionでは確保済み状態を示して二重操作を避ける。
 
 # 11. FILTER AUTHORING UI
 
@@ -421,12 +493,15 @@ Persistent:
 - Covered/Hard Positive state
 - Explicit Negative Feature windows
 - update candidate metadata
+- `見どころメモ` Scene / memo VideoItemsはYMM4 Project側に永続化される。Navigator独自DBへ同じClipを二重保存しない
 
 Session:
 
 - Runtime Feature Index
 - Query Episodes
 - Runtime Review History
+- Review occurrence lineage / current bindings
+- Candidate AnchorSourceTime / current projection state
 - temporary descriptors / backend temp
 
 Profile revisionがPack schemaを満たさない場合、黙って0/negative扱いしない。
@@ -498,53 +573,96 @@ Target追加
 - previous revisionへrollback
 - Corpus replayと候補密度を確認
 
+## 13.7 Edit-while-review rebinding
+
+- 解析後にReview対象をSplitしても、元Sourceが同じなら再Decodeせず次Candidateへ進める
+- head/tail Trim後、Anchorが残るCandidateはcurrent Itemへ再投影できる
+- Trim/DeleteでAnchorが消えたCandidateだけskipできる
+- split pieceをMoveしてもcurrent Frameを再計算してJumpできる
+- Undo/Redo後もcurrent Timeline stateからrebindできる
+- copy/pasteで同一source rangeが複数ある時、任意のduplicateへ誤Jumpしない
+- source file自体が変更された場合はFeature staleを明示する
+
+## 13.8 Highlight memo shelf
+
+READMEなしで:
+
+```text
+候補へJump
+→ 使えそうなら「見どころを確保」
+→ Review Sceneはそのまま
+→ 「見どころメモ」SceneにFrame0 / 1Layer1本で追加
+```
+
+- memo開始 = AnchorSourceTime。review pre-rollを付けない
+- default30秒、ユーザー指定尺が反映される
+- source終端では安全に短縮する
+- Remarkにhit Filter名を残す
+- 既存memoはLayer ON/OFFで判別しやすいよう時間方向へずらさない
+- 同一source+anchorの二重memoを防ぐ
+- Main review Itemを変更しない
+- Project save/reload後もmemo Scene/Layer/Remark/source位置が残る
+
 # 14. EXECUTION WAYPOINTS
 
 ## W1 — YMM4 Target / Projection Spine — IMPLEMENTED BASELINE
 
-Target snapshot / source-time mapping / Timeline Jump / stale rejection / separate occurrences。
+Target snapshot / source-time mapping / Timeline Jump / separate occurrenceのbaselineは実装済み。現行のstrict stale snapshotはedit-while-reviewに対して過剰なので、下のW1-Rで置換する。
+
+## W1-R — Edit-time Rebinding Extension — NEXT FIRST
+
+**Purpose:** 一度解析したSource Featureを、Split / Trim / Move / Undo-Redo後も再利用しながら候補巡回を続ける。
+
+Scope:
+
+- Candidate AnchorSourceTime
+- immutable ReviewSourceSession / stable review order
+- occurrence lineage / current binding
+- split replacement adoption
+- trim containment / per-candidate unavailable
+- move/current Frame reprojection
+- duplicate ambiguity fail-closed
+- source-file staleは維持
+
+**Exit:** `解析 → 候補へJump → Split/Trim/Move → 次候補` が再Decodeなしで動き、duplicate source occurrenceへ誤Jumpしない。
 
 ## W2 — Shared Feature Engine — IMPLEMENTED BASELINE
 
 RuntimeとLearningで共有するprimitive Feature、FeaturePack、PackStore、FFmpeg backend。
 
-## W3 — Learning Corpus + Transition Extraction — NEXT
+## W3 — Learning Corpus + Transition Extraction — IMPLEMENTED CHECKPOINT
 
-**Purpose:** 普通の動画Folderを教材としてbatch Importし、Persistent Packを作り、各ClipのTransition候補とbefore/transition/after windowを得る。
+Non-destructive batch intake / persistent Pack / raw-video-free replay / local Transition proposalsまで実装済み。作り直さない。
 
-Scope:
+## W4 — Multi-Profile Runtime Review — IMPLEMENTED CHECKPOINT
 
-- batch Folder import / preview
-- fingerprint / dedupe / positive memberships / provenance
-- Pack persist + reload validation + registration transaction
-- transition candidate extraction
-- raw-video-free reload / replay
-- first implementation is non-destructive
+既存Profile evaluator / learned Filter / OR Union / merge / attribution / Prev-Next-List / no-redecode sensitivityまで接続済み。
 
-**Exit:** 少数教材をImportし、元動画を外してもPackからTransition候補を再取得できる。
+## W4-M — Highlight Memo Capture Extension — NEXT SECOND
 
-## W4 — Multi-Profile Runtime Review — BASIC IMPLEMENTED
-
-既存Profile evaluator / OR Union / merge / attribution / Prev-Next-List / no-redecode sensitivityを維持。
-
-追加課題はLearningで生成したFilter revisionをRuntimeへ接続すること。
-
-## W5 — Transition Filter Authoring + Coverage Loop
-
-**Purpose:** 複数Positive教材のTransition傾向からFilter Candidateを作り、全Positiveへ再適用する。
+**Purpose:** Reviewで使えそうなCandidate開始地点を、元Timelineを編集せず別Sceneへ即時確保する。
 
 Scope:
 
-- transition alignment / common temporal tendencies
-- initial Pattern生成
-- multiple Pattern ORの必要判定
-- Covered Positive / Hard Positive
-- runtime filter registration
-- main Global Sensitivityとの接続
+- `見どころメモ` Scene create/reuse
+- active Review Scene保持
+- Frame0 fixed
+- one memo per Layer / smallest free positive Layer
+- AnchorSourceTime start / no pre-roll
+- configurable duration, default30s
+- 100% reference playback
+- source-end clamp
+- Remark attribution
+- same source+anchor dedupe
+- friendly fail-closed on duplicate memo Scene or host dependency change
 
-**Exit:** `動画数本 → Filter生成 → Positive replay → 長尺適用 → Sensitivity調整` が一気通貫で動く。
+**Exit:** `候補選択 → 見どころを確保` でMainを変えずmemo shelfへ追加でき、save/reload後もそのままLayer ON/OFF確認できる。
 
-## W6 — Hard Positive / Explicit Negative / Revision
+## W5 — Transition Filter Authoring + Coverage Loop — IMPLEMENTED CHECKPOINT
+
+教材動画 → Filter生成 → Positive replay → 長尺試用 → 明示保存 → Sensitivity変更 → Prev/Nextまで実装済み。実X4精度合格ではない。
+
+## W6 — Hard Positive / Explicit Negative / Revision — AFTER W1-R / W4-M
 
 **Purpose:** 見逃しと実際の誤検出からFilterを改善する。
 
@@ -555,7 +673,7 @@ Scope:
 - Contrast refinement
 - full Positive regression
 - candidate-density guard
-- Preview / Apply / revision / rollback
+- existing Preview / Apply / revision / rollbackへ接続
 
 **Exit:** Hard Positive coverageを改善しつつ既存Positiveを維持し、誤検出由来Negativeへの一致を減らせる。
 
@@ -563,6 +681,8 @@ Scope:
 
 - X4実長尺でRecall / candidate density / review reduction評価
 - long-recording memory / ingest / query latency
+- edit-while-review hands-on
+- memo shelf hands-on / many-layer usability
 - GPU path + software fallback
 - `.ymme` install / upgrade
 - supported YMM4 update compatibility
@@ -590,6 +710,14 @@ Main risks:
   - ordinary video importがAuthority
 - **Host update failure:** YMM4更新で依存変更しPluginが本体を巻き込む
   - capability guard / fail closed
+- **Frozen-item invalidation:** Split/Trim/MoveだけでFeature Indexを捨ててReviewが止まる
+  - source-time authority / current Timeline rebind
+- **Duplicate occurrence jump:** copy/pasteされた同一source rangeへ誤Jumpする
+  - occurrence lineage / ambiguity fail-closed
+- **Memo shelf drift:** memoを時間方向へ並べて使用Layerが即座に分からなくなる
+  - Frame0固定 / 1 memo 1 Layer
+- **Memo overreach:** memo機能が完成尺推定・media exportへ肥大化する
+  - Anchor開始 + user指定固定尺のreference clipに限定
 
 REOPEN:
 
@@ -604,8 +732,8 @@ REOPEN:
 
 Authority:
 
-1. Current user decisions / D-01〜D-15 / Priority
-2. 本v0.4.1 Design
+1. Current user decisions / D-01〜D-20 / Priority
+2. 本v0.4.2 Design
 3. v0.4.0の非衝突部分
 4. Lab / Product evidence
 5. Implementation convenience
@@ -630,10 +758,13 @@ Delegation:
 - Heavy MLをFirst Value必須化
 - silent auto-trainingへ変更
 - Runtime Reviewで元動画 / ymmpを破壊変更
+- `見どころを確保`を完成尺の自動抽出/自動編集へ拡大
+- memo Clipを時間方向へ自動でずらす配置へ変更
+- duplicate occurrenceをSource+timeだけで任意選択
 
 # 17. FINAL INTENT
 
-> **人間が過去に残した短尺動画から、日常→戦闘などの「場面が切り替わる傾向」をFilterとして育てる。現Filterで拾える教材はRegressionへ残し、拾えない教材だけを重点改善する。実運用で誤検出した候補だけをNegativeとして差分を学び、見逃しを増やさず候補量を減らす。長尺ReviewではFilter ON/OFFと検出感度をすぐ変え、候補を前/次で高速確認する。**
+> **人間が過去に残した短尺動画から、日常→戦闘などの「場面が切り替わる傾向」をFilterとして育てる。長尺Reviewでは一度解析したSource Featureを編集後も再利用し、候補を前/次で高速確認する。使えそうな開始地点は本編を切らず「見どころメモ」SceneへFrame0・1Layer1本で確保する。現Filterで拾えない教材と実際の誤検出だけを重点改善し、見逃しを増やさず候補量を減らす。**
 
 Operational image:
 
@@ -657,6 +788,11 @@ Positive replay
 新しい長尺録画へ適用
         ↓
 Sensitivityを調整し高速Review
+        ↓
+使えそうなら「見どころを確保」
+  └─ Frame0 / 1Layer1本 / Anchor開始
+        ↓
+編集してもSource-time rebindでReview継続
         ↓
 誤検出だけExplicit Negative
         ↓
