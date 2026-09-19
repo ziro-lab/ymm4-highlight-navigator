@@ -66,6 +66,14 @@ public sealed record ProfileHit(string ProfileId, TimeRange Range, ImmutableArra
 {
     // Legacy callers without metadata use the unexpanded range start. Evaluators supply actual hits.
     public ImmutableArray<double> AnchorSourceTimes => Anchors.IsDefault ? [Range.Start] : Anchors;
+    public bool Equals(ProfileHit? other) => other is not null && ProfileId == other.ProfileId && Range == other.Range
+        && AnchorSourceTimes.SequenceEqual(other.AnchorSourceTimes);
+    public override int GetHashCode()
+    {
+        var hash = new HashCode(); hash.Add(ProfileId); hash.Add(Range);
+        foreach (double anchor in AnchorSourceTimes) hash.Add(anchor);
+        return hash.ToHashCode();
+    }
     public ProfileHit? Clip(TimeRange coverage)
     {
         var range = Range.Intersect(coverage);
