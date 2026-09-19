@@ -154,6 +154,15 @@ internal static class Proof
         Check("overlap_decoded_once", model.DecodedRangeCount == 1);
         Check("source_to_occurrences", model.Candidates.Select(c => c.TargetId).Distinct().Count() == 2);
         Check("chronological_queue", model.Candidates.Select(c => c.Frame).SequenceEqual(model.Candidates.Select(c => c.Frame).Order()));
+        bool anchorRates = true;
+        foreach (var candidate in model.Candidates)
+        {
+            var captured = model.Targets.Single(t => t.Id == candidate.TargetId);
+            model.Selected = candidate; model.JumpSelected();
+            int expected = captured.StartFrame + (int)Math.Ceiling((candidate.AnchorSourceTime - captured.OffsetSeconds) * 100 / captured.RatePercent * fps - 1e-9);
+            anchorRates &= timeline.CurrentFrame == expected && candidate.Frame == expected;
+        }
+        Check("native_anchor_projection_50_200", anchorRates);
         model.Selected = null; model.Move(1); Check("next_jump_exact", model.Selected != null && timeline.CurrentFrame == model.Selected.Frame); var remembered = model.Selected!;
         File.Move(ffmpeg, ffmpeg + ".disabled");
         try
@@ -169,12 +178,23 @@ internal static class Proof
         finally { File.Move(ffmpeg + ".disabled", ffmpeg); }
         Check("visited_survives_requery", model.Candidates.Any(c => c.TargetId == remembered.TargetId && c.Source == remembered.Source && c.Visited));
         Check("item_state_unchanged", beforeState == Signature()); Check("source_bytes_unchanged", beforeHash == Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(media))));
-        model.Selected = model.Candidates.First(c => c.TargetId == remembered.TargetId); int beforeFrame = timeline.CurrentFrame; a.Frame++; rejected = false;
-        try { model.JumpSelected(); } catch (InvalidOperationException) { rejected = true; } finally { a.Frame--; }
-        Check("stale_target_rejected_atomically", rejected && timeline.CurrentFrame == beforeFrame);
+        model.Selected = model.Candidates.First(c => c.TargetId == remembered.TargetId);
+        int callsBeforeEdit = model.AnalysisBackendCallCount;
+        int expectedMoved = model.Selected.Frame!.Value + 1; a.Frame++;
+        try { model.JumpSelected(); Check("timeline_move_rebind", timeline.CurrentFrame == expectedMoved && model.AnalysisBackendCallCount == callsBeforeEdit); }
+        finally { a.Frame--; }
+        int beforeFrame = timeline.CurrentFrame;
+        DateTime originalWrite = File.GetLastWriteTimeUtc(media);
+        try
+        {
+            File.SetLastWriteTimeUtc(media, originalWrite.AddSeconds(5)); model.JumpCommand.Execute(null);
+            Check("source_mutation_rejected_atomically", timeline.CurrentFrame == beforeFrame && model.Status.Contains("再解析", StringComparison.Ordinal));
+        }
+        finally { File.SetLastWriteTimeUtc(media, originalWrite); }
         adapter.Attach(null); Check("timeline_detach_invalidates", adapter.Snapshots.IsEmpty);
         await LearningNativeProof.RunAsync(model, timeline, media, output, Check);
         Check("learning_keeps_live_items_and_source", beforeState == Signature() && beforeHash == Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(media))));
+        await RebindingNativeProof.RunAsync(model, timeline, output, Check);
         var narrow = new NavigatorView { DataContext = model, Width = 360, Height = 480 };
         var captureSurface = new System.Windows.Controls.Border { Background = SystemColors.WindowBrush, Child = narrow, Width = 360, Height = 480 };
         captureSurface.Measure(new Size(360, 480)); captureSurface.Arrange(new Rect(0, 0, 360, 480)); captureSurface.UpdateLayout();

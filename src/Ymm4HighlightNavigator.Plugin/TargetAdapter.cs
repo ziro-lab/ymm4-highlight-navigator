@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Globalization;
 using System.IO;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Windows;
 using Ymm4HighlightNavigator.Core;
 using YukkuriMovieMaker.Project;
@@ -9,23 +10,32 @@ using YukkuriMovieMaker.Project.Items;
 
 namespace Ymm4HighlightNavigator.Plugin;
 
+public sealed record CandidateProjection(int? Frame, int Fps, RebindStatus Status, string? Reason)
+{
+    public bool Available => Frame.HasValue && Status == RebindStatus.Available;
+}
+
 /// <summary>All host-private access lives here. No live YMM4 object leaves the UI thread.</summary>
 public sealed class TargetAdapter
 {
-    private sealed record Entry(VideoItem Item, TargetSnapshot Snapshot, long SourceBytes, long SourceWriteTicks);
+    private sealed record Entry(ReviewSourceSession Session, OccurrenceLineage Lineage);
+    private sealed class ReferenceToken { public Guid Id { get; } = Guid.NewGuid(); }
     private readonly List<Entry> entries = [];
+    private ConditionalWeakTable<VideoItem, ReferenceToken> references = new();
+    private Dictionary<Guid, VideoItem> currentItems = [];
     private Timeline? timeline;
-    public ImmutableArray<TargetSnapshot> Snapshots => entries.Select(e => e.Snapshot).ToImmutableArray();
+    public ImmutableArray<TargetSnapshot> Snapshots => entries.Select(e => e.Session.Capture).ToImmutableArray();
+    public ImmutableArray<ReviewSourceSession> Sessions => entries.Select(e => e.Session).ToImmutableArray();
     public bool HasTimeline => timeline != null;
 
-    // Host lifecycle callbacks must not fail merely because the YMM4 build number changed.
-    // The actual feature use below checks the surfaces it needs and fails closed if they changed.
+    // Check capabilities on use, not version numbers. Weak tokens preserve historical identity without retaining items.
     public bool Attach(Timeline? next)
     {
         if (ReferenceEquals(timeline, next)) return false;
-        timeline = next; entries.Clear(); return true;
+        timeline = next; entries.Clear(); currentItems.Clear(); references = new(); return true;
     }
     private static void Ui() => Application.Current.Dispatcher.VerifyAccess();
+    private Guid Reference(VideoItem item) => references.GetValue(item, static _ => new ReferenceToken()).Id;
 
     public void CaptureSelection()
     {
@@ -34,85 +44,128 @@ public sealed class TargetAdapter
         {
             var host = timeline ?? throw new InvalidOperationException("対象のタイムラインがありません。");
             int fps = host.VideoInfo.FPS;
-            var selected = host.SelectedItems.OfType<VideoItem>().Distinct(ReferenceEqualityComparer.Instance).Cast<VideoItem>().ToArray();
+            var selected = host.SelectedItems.OfType<VideoItem>().Distinct(ReferenceEqualityComparer.Instance).Cast<VideoItem>()
+                .OrderBy(v => v.Frame).ThenBy(v => v.Layer).ToArray();
             if (selected.Length == 0) throw new InvalidOperationException("YMM4で動画アイテムを選択してください。");
+            var observed = host.Items.OfType<VideoItem>().Select(Reference).ToArray();
             var next = new List<Entry>();
             foreach (var item in selected)
             {
                 if (!host.Items.Any(x => ReferenceEquals(x, item))) throw new InvalidOperationException("選択した動画がタイムラインにありません。");
-                var id = entries.FirstOrDefault(x => ReferenceEquals(x.Item, item))?.Snapshot.Id ?? Guid.NewGuid();
-                var snapshot = Read(item, fps, id);
+                var snapshot = Read(item, fps, Guid.NewGuid());
                 var file = new FileInfo(snapshot.SourceKey);
                 if (!file.Exists) throw new FileNotFoundException("録画ファイルが見つかりません。", snapshot.SourceKey);
-                next.Add(new(item, snapshot, file.Length, file.LastWriteTimeUtc.Ticks));
+                var session = new ReviewSourceSession(snapshot, next.Count, new(file.Length, file.LastWriteTimeUtc.Ticks));
+                next.Add(new(session, new(session, new(Reference(item), snapshot, item.Layer), observed)));
             }
-            // A failed capture must not leave a partially replaced Target Set.
-            entries.Clear(); entries.AddRange(next);
+            // A failed capture must not partially replace the Target Set or its analysis authority.
+            entries.Clear(); entries.AddRange(next); currentItems.Clear();
         }
-        catch (Exception ex) when (IsHostDependencyFailure(ex))
-        {
-            throw DependencyChanged(ex);
-        }
+        catch (Exception ex) when (IsHostDependencyFailure(ex)) { throw DependencyChanged(ex); }
     }
 
+    // Timeline edits are NOT source mutations. Captured source coverage remains immutable for decoding/querying.
     public void ValidateCurrent()
     {
         Ui();
-        try
+        if (timeline is null) throw new InvalidOperationException("タイムラインが変わりました。対象を選び直してください。");
+        foreach (var entry in entries)
         {
-            var host = timeline ?? throw new InvalidOperationException("タイムラインが変わりました。対象を選び直してください。");
-            foreach (var entry in entries)
-            {
-                if (!host.Items.Any(x => ReferenceEquals(x, entry.Item))) throw Stale();
-                var current = Read(entry.Item, host.VideoInfo.FPS, entry.Snapshot.Id);
-                if (current != entry.Snapshot) throw Stale();
-                var file = new FileInfo(current.SourceKey);
-                if (!file.Exists || file.Length != entry.SourceBytes || file.LastWriteTimeUtc.Ticks != entry.SourceWriteTicks) throw Stale();
-            }
-        }
-        catch (Exception ex) when (IsHostDependencyFailure(ex))
-        {
-            throw DependencyChanged(ex);
+            var file = new FileInfo(entry.Session.SourceKey);
+            if (!file.Exists || !entry.Session.Stamp.Matches(true, new(file.Length, file.LastWriteTimeUtc.Ticks))) throw Stale();
         }
     }
-    private static InvalidOperationException Stale() => new("対象の動画・位置・速度が変わりました。対象を選び直して再解析してください。");
+    private static InvalidOperationException Stale() => new("録画ファイルが削除・変更されました。対象を選び直して再解析してください。");
 
-    public int? Project(Guid targetId, TimeRange sourceRange)
+    public void RefreshCurrent()
     {
         Ui(); ValidateCurrent();
         try
         {
-            var entry = entries.SingleOrDefault(x => x.Snapshot.Id == targetId) ?? throw Stale();
-            var clipped = entry.Snapshot.SourceRange.Intersect(sourceRange);
-            if (clipped == null) return null;
-            var map = HostMap.Read(entry.Item);
-            var itemTime = map.Inverse(TimeSpan.FromSeconds(clipped.Value.Start), entry.Item.Length, entry.Snapshot.Fps, entry.Item.ContentOffset, entry.Item.ContentLength);
-            if (itemTime == null) return null;
-            int local = Math.Max(0, checked((int)Math.Ceiling(itemTime.Value.TotalSeconds * entry.Snapshot.Fps - 1e-9)));
-            if (local >= entry.Item.Length) return null;
-            var actualSource = map.Forward(TimeSpan.FromSeconds(local / (double)entry.Snapshot.Fps), entry.Item.Length, entry.Snapshot.Fps, entry.Item.ContentOffset, entry.Item.ContentLength);
-            if (actualSource.TotalSeconds < clipped.Value.Start - 1e-6 || actualSource.TotalSeconds >= clipped.Value.End) return null;
-            return checked(entry.Item.Frame + local);
+            var host = timeline!; int fps = host.VideoInfo.FPS;
+            var observations = new List<OccurrenceObservation>();
+            var items = new Dictionary<Guid, VideoItem>();
+            foreach (var item in host.Items.OfType<VideoItem>())
+            {
+                Guid id = Reference(item); items.Add(id, item);
+                try
+                {
+                    bool relevant = entries.Any(e => e.Lineage.Knows(id)) || !string.IsNullOrWhiteSpace(item.FilePath)
+                        && entries.Any(e => ReviewSourceIdentity.Same(e.Session.SourceKey, Path.GetFullPath(item.FilePath)));
+                    observations.Add(relevant ? new(id, Read(item, fps, id), item.Layer) : new(id, null, item.Layer));
+                }
+                catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or NotSupportedException or IOException or OverflowException || IsHostDependencyFailure(ex))
+                {
+                    // A present unsupported occurrence must not look deleted and accidentally rebind to its copy.
+                    observations.Add(new(id, null, item.Layer, IsHostDependencyFailure(ex) ? DependencyChanged(ex).Message : ex.Message));
+                }
+            }
+            foreach (var entry in entries) entry.Lineage.Refresh(observations);
+            currentItems = items;
         }
-        catch (Exception ex) when (IsHostDependencyFailure(ex))
-        {
-            throw DependencyChanged(ex);
-        }
+        catch (Exception ex) when (IsHostDependencyFailure(ex)) { throw DependencyChanged(ex); }
     }
 
+    // Call after RefreshCurrent, within the same UI-thread operation. HostMap is always the current item's map.
+    public CandidateProjection ProjectCurrent(Guid targetId, double anchor, TimeRange? requestedRange = null)
+    {
+        Ui();
+        var entry = entries.SingleOrDefault(e => e.Session.ReviewTargetId == targetId)
+            ?? throw new InvalidOperationException("対象が変わりました。動画を対象に追加してください。");
+        int fps = timeline?.VideoInfo.FPS ?? entry.Session.Capture.Fps;
+        var resolved = entry.Lineage.Resolve(anchor);
+        if (!resolved.Available) return new(null, fps, resolved.Status, resolved.Reason);
+        var occurrence = resolved.Occurrence!;
+        if (!currentItems.TryGetValue(occurrence.ReferenceId, out var item)) return Missing(fps);
+        try
+        {
+            var map = HostMap.Read(item);
+            if (!map.IsConstant || !double.IsFinite(map.FirstRate) || map.FirstRate <= 0)
+                return new(null, fps, RebindStatus.Unsupported, "この候補の再生速度・時間変換には対応していません。");
+            var itemTime = map.Inverse(TimeSpan.FromSeconds(anchor), item.Length, fps, item.ContentOffset, item.ContentLength);
+            if (itemTime is null) return Missing(fps);
+            int local = Math.Max(0, checked((int)Math.Ceiling(itemTime.Value.TotalSeconds * fps - 1e-9)));
+            if (local >= item.Length) return Missing(fps);
+            var actualSource = map.Forward(TimeSpan.FromSeconds(local / (double)fps), item.Length, fps, item.ContentOffset, item.ContentLength);
+            double end = Math.Min(entry.Session.AnalyzedSourceRange.End, occurrence.Mapping!.SourceRange.End);
+            if (requestedRange is { } requested) end = Math.Min(end, requested.End);
+            if (actualSource.TotalSeconds < anchor - 1e-6 || actualSource.TotalSeconds >= end) return Missing(fps);
+            return new(checked(item.Frame + local), fps, RebindStatus.Available, null);
+        }
+        catch (Exception ex) when (IsHostDependencyFailure(ex)) { return new(null, fps, RebindStatus.Unsupported, DependencyChanged(ex).Message); }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or NotSupportedException or OverflowException)
+        { return new(null, fps, RebindStatus.Unsupported, ex.Message); }
+    }
+    private static CandidateProjection Missing(int fps) => new(null, fps, RebindStatus.Unavailable, "この候補には移動できるフレームがありません。");
+
+    // Retain the original range projection surface for the fractional-frame and exclusive-end regressions.
+    public int? Project(Guid targetId, TimeRange sourceRange)
+    {
+        RefreshCurrent();
+        var entry = entries.SingleOrDefault(e => e.Session.ReviewTargetId == targetId) ?? throw Stale();
+        var clipped = entry.Session.AnalyzedSourceRange.Intersect(sourceRange);
+        return clipped is null ? null : ProjectCurrent(targetId, clipped.Value.Start, clipped.Value).Frame;
+    }
+    public CandidateProjection JumpAnchor(Guid targetId, double anchor)
+    {
+        RefreshCurrent();
+        var projection = ProjectCurrent(targetId, anchor);
+        if (!projection.Available) throw new InvalidOperationException(projection.Reason);
+        MovePlayhead(projection.Frame!.Value); return projection;
+    }
     public int Jump(Guid targetId, TimeRange sourceRange)
     {
         int frame = Project(targetId, sourceRange) ?? throw new InvalidOperationException("この候補には移動できるフレームがありません。");
+        MovePlayhead(frame); return frame;
+    }
+    private void MovePlayhead(int frame)
+    {
         try
         {
             timeline!.CurrentFrame = frame;
             if (timeline.CurrentFrame != frame) throw new InvalidOperationException("YMM4の再生位置を移動できませんでした。");
-            return frame;
         }
-        catch (Exception ex) when (IsHostDependencyFailure(ex))
-        {
-            throw DependencyChanged(ex);
-        }
+        catch (Exception ex) when (IsHostDependencyFailure(ex)) { throw DependencyChanged(ex); }
     }
 
     private static TargetSnapshot Read(VideoItem item, int fps, Guid id)

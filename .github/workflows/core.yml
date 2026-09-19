@@ -24,7 +24,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: navigator-core-${{ github.head_ref || github.ref }}
+  group: navigator-core-${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 jobs:
   core:
