@@ -1,10 +1,19 @@
 name: Navigator core
 on:
   workflow_dispatch:
+  push:
+    branches: ['feature/w1r-edit-time-rebinding']
+    paths:
+      - 'src/Ymm4HighlightNavigator.Core/**'
+      - 'tests/Ymm4HighlightNavigator.Core.Tests/**'
+      - 'tests/Ymm4HighlightNavigator.Rebinding.Tests/**'
+      - 'tools/fixtures/**'
+      - '.github/workflows/core.yml'
   pull_request:
     paths:
       - 'src/Ymm4HighlightNavigator.Core/**'
       - 'tests/Ymm4HighlightNavigator.Core.Tests/**'
+      - 'tests/Ymm4HighlightNavigator.Rebinding.Tests/**'
       - 'tools/fixtures/**'
       - '.github/workflows/core.yml'
 permissions:
@@ -21,6 +30,12 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 1
+      - name: Retain exact tested source
+        run: |
+          mkdir -p out
+          git archive --format=zip --output=out/tested-source.zip HEAD
+          git rev-parse HEAD > out/tested-source-sha.txt
+          sha256sum out/tested-source.zip > out/tested-source.sha256
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1
         with:
           dotnet-version: '10.0.400'
@@ -59,5 +74,8 @@ jobs:
             out/core-tests/size.json
             out/dotnet-info.txt
             out/ffmpeg-version.txt
+            out/tested-source.zip
+            out/tested-source-sha.txt
+            out/tested-source.sha256
           if-no-files-found: error
           retention-days: 7
