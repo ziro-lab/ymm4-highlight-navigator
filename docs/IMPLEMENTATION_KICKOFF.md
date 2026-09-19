@@ -1,6 +1,8 @@
-# Implementation continuation — after initial W3/W5
+# Implementation continuation — v0.4.2 edit-while-review + memo shelf
 
-最初に `AGENTS.md`、`docs/DESIGN.md`、[実装状況](IMPLEMENTATION_STATUS.md)、[ROADMAP](ROADMAP.md) と現在のmain/PRを確認する。設計はv0.4.1。W3/W5の初期コードは既にあるので、旧「W3-Aから作る」指示へ戻らない。
+最初に `AGENTS.md`、`docs/DESIGN.md`、`docs/IMPLEMENTATION_STATUS.md`、`docs/ROADMAP.md`、`docs/LAB_REFERENCES.md` と現在のmain/PRを確認する。
+
+現mainの再開点はW3/W5初期学習機能まで実装済み。**W3/W5を作り直さない。次は W1-R → W4-M → W6-A の順。**
 
 ## Current reusable spine
 
@@ -16,73 +18,263 @@
 → Episode Union / Target projection / Prev/Next
 ```
 
-主要実装:
+既存のYMM4 bundled FFmpeg locator、Feature extraction、Corpus、FilterStore、Sensitivity no-redecode、Learning UIは再実装しない。
 
-- `Core/Learning/CorpusStore.cs`: 非破壊batch、dedupe、分類、verified Pack/catalog publication。
-- `Core/Learning/TransitionFeatures.cs`: 局所before/after・時間方向signature、候補生成。
-- `Core/Learning/TransitionFilters.cs`: 複数OR Pattern、候補作成、固定感度replay。
-- `Core/Learning/FilterStore.cs`: compare-and-set Apply、Positive回帰拒否、revision/rollback。
-- `Plugin/LearningModel.cs` / `LearningView`: 教材→候補→試用/保存の日本語UI。
-- `Plugin/LearningIntegration.cs`: saved Filter load、session trial、メインRuntimeへの接続。
+## Adopted Lab facts for the next slices
 
-raw videoは変更・削除しない。YMM4同梱FFmpegのLocator、no-redecode、TargetAdapter、FeaturePackを再実装しない。現在のmatcherはvisual-firstで、audioは保持のみ。詳細契約は [FEATURE_FORMAT.md](FEATURE_FORMAT.md)。
+### Edit-time lifecycle
 
-## Next primary slice — W6-A false-positive feedback
+- Split: 元VideoItemは消え、左右とも新object。source rangeはpartitionされる。
+- Head/tail Trim: same object referenceのままFrame/Length/ContentOffset等が変わる。
+- Move: same object referenceのままFrameが変わり、source rangeは維持。
+- Undo/Redo: semantic stateが戻り、observed cycleでは過去referenceも再出現した。
+- Copy/Paste:別objectなのに同じFilePath + ContentOffset + Length + rateのoccurrenceを複数作れる。
 
-目的は、実際に不要だった候補を **そのFilterのExplicit Negative** として、Featureだけから改善に使えるようにすること。
+Evidence exact pinsは `docs/LAB_REFERENCES.md`。製品実装はこれを再調査せず、product integrationだけをnativeで証明する。
 
-1. Runtime candidateがどのFilter/revision/Transition center/source windowから来たかを保持する。現在のCandidate表示名だけで永続的なNegative identityを作らない。
-2. ユーザーの「これは違う」で対象Filterと局所windowを記録する。1候補に複数Filterがある場合、別Filterへ自動で否定を広げない。通常1Filterなら反復入力を増やさない。
-3. 既存Featureから必要windowを保存し、原動画の再切り出しや別FFmpeg再Decodeを要求しない。before/after contextとsource-time対応、extractor/algorithm/revisionを残す。
-4. Negativeは人間が付けたラベル。別フォルダー/未所属/低一致/音声なしを自動Negativeにしない。取消・誤指定の修正を可能にする。
-5. 保存完了とUI操作成功を分け、失敗/中止でFalse Positiveが登録できたと表示しない。通常Reviewの元動画/ymmpを変更しない。
+### Memo Scene shelf
 
-この段階で、新しい汎用分類器や大規模な管理画面を先に作らない。
+- `MainModel.Scenes / CreateNewScene / SelectScene / Timeline.TryAddItems` がtested hostで使用可能。
+- Mainをactiveのままnon-active memo TimelineへVideoItemを追加できる。
+- 全memoをFrame0へ置きLayerだけ1/2/3と分けられる。
+- 30s/30s/12sの可変長、ContentOffset、Remark、FilePath、memo Timeline Guidがsave/reload後も維持。
+- memo追加でMain source itemは変更されなかった。
 
-## Then W6-B/C — bounded refinement
+## Slice 1 — W1-R Edit-time rebinding
 
-現行Authorは未検出Positiveを優先してPattern追加し、CoveredCandidateも回帰に残す。ここへExplicit Negativeとの比較を加える。
+### Goal
 
-- Positiveを落とす広いNegative-vetoではなく、識別に役立つ特徴差・閾値・Pattern修正候補を作る。
-- 既存の固定条件replayへPositive/Negativeを合わせて流し、見逃しを重く扱う。
-- 教材に一致があるだけでは狙ったTransitionの確認ではない。独立した実素材/期待地点の評価は別に設ける。
-- Runtime感度は利用時の調整。学習回帰の基準感度1と結果を混ぜない。
-- Patternが増えるだけの改善、候補が録画の大半を覆う改善を成功扱いしない。raw center数・統合候補数・レビュー区間長・query costを区別する。
-- 全教材を既に拾える場合、不要な探索や同内容revision追加を避ける変更なし経路を整理する。
-- Preview/Apply/rollbackは今のFilterStoreへ接続し、第二の保存正本を作らない。
+一度解析したSource Feature Indexを、Timeline-only editのたびに捨てず、そのまま次の候補へ進める。
 
-## Fixtures / acceptance to add
+### Required model delta
 
-Coreで先に再現する:
+現行 `Candidate(TargetId, SourceRange, Frame, ...)` はFrameをAuthorityにしすぎている。次の形へ寄せる。
 
-- 同じ候補でAは誤検出、Bは正しい。NegativeはAだけ。
-- 教材PositiveとNegativeに似た画面変化があるが、前後の局所差だけが違う。
-- Negativeを抑えるだけの修正が既存Positiveも落とすので拒否される。
-- ラベル取消・duplicate negative・異なるFilter revision・Corpus変更中のstale draft。
-- Raw videoがない状態でNegative特徴/改善候補を再読込できる。
-- 感度変更は保存Filter/Negativeラベル/基準感度の回帰結果を変更しない。
-- 関係ない強い切替だけを拾った教材を、正しいTransitionの意味的成功と報告しない。
+```text
+Candidate
+├ TargetId / ReviewTargetId
+├ SourceKey
+├ SourceRange          // review context
+├ AnchorSourceTime     // actual hit/start authority
+├ StableOrderKey       // capture-time target order + anchor
+├ Filter/Profile attribution
+├ current projection  // nullable / refreshable
+└ visited / memoed UI state
+```
 
-必要な製品native checkpointでは、実候補→指定FilterのNegative登録→画面を閉じてもReview継続、例外がホストへ漏れない通常失敗経路を確認する。物理入力や将来の全API互換をそのPASSに含めない。
+Transition Filterは `TransitionMatch.CenterSeconds` をAnchorへ通す。review rangeのPreRoll startをAnchorにしない。
+
+Generic seed Profileは最初の実hit pointをAnchorにできるよう、ProfileHit/Episode pathへoptional anchor metadataを通す。anchorを失うためだけにReview Range unionを壊さない。
+
+### Review session / occurrence lineage
+
+`TargetAdapter` は次の責務へ分割する。
+
+```text
+ReviewSourceSession
+  immutable:
+    review target id
+    source key
+    analyzed source range
+    capture-time order
+    source file fingerprint/stamp
+  mutable host binding:
+    known lineage references
+    last resolved item(s)
+    last source/timeline ranges
+```
+
+Rebind policy:
+
+1. current Timelineにknown lineage referenceが存在しAnchorを含むならそれを使う。
+2. Split等でknown current refが消えた場合だけ、直前bindingと同Sourceのreplacement candidatesを調べる。
+3. replacementがsource/timeline partitionとして一意に説明できる場合だけlineageへ採用する。
+4. Copy/Pasteされた同一source occurrenceは、known lineageが残る限り無視する。
+5. replacementが複数解釈できる場合は任意選択せず、そのCandidateを `曖昧` / unavailableとしてfail closedする。
+6. Trim/DeleteでAnchorを含むlineage pieceが無ければそのCandidateだけskipする。
+7. Moveはknown referenceが残るのでcurrent Frameだけ再投影する。
+8. Undo/Redoはknown historical refsが再出現すれば再利用し、出なければ同じrebind ruleを使う。
+
+Source fileが消えた/内容stampが変わった場合はFeature Index staleとして従来どおり再解析要求。Timeline editとsource mutationを混同しない。
+
+### Navigation order
+
+Prev/Next順は**capture時Target順 + AnchorSourceTime**で安定させる。編集後のTimeline Frameでqueueを並べ替えない。
+
+current Timeline FrameはJump直前に再projectする。List表示のcurrent positionが必要ならprojection refreshで更新するが、順序Authorityにはしない。
+
+### Expected code touch
+
+- `Core/Intervals.cs`: ProfileHit / ReviewEpisodeにoptional anchor metadataを通す。
+- `Core/Learning/TransitionFilters.cs`: learned match centerをanchorとして保持。
+- `Plugin/NavigatorModel.cs`: Candidate model、stable order、visited identity、projection refresh。
+- `Plugin/TargetAdapter.cs`: strict snapshot staleからReviewSourceSession + rebindへ。
+- Tests: Core queue/anchor pure tests + Plugin adapter/model tests。
+
+Host-private surfaceをCoreへ漏らさない。
+
+### Pure acceptance first
+
+- transition review rangeがpre-rollを持ってもAnchorはtransition center。
+- overlap/union後もFilter attributionと合理的Anchorが残る。
+- stable orderはcurrent Frame moveで変わらない。
+- Trimで1候補だけunavailableになり他候補は残る。
+- duplicate source occurrenceがあってもknown lineageが選ばれる。
+- ambiguous replacementはfail closed。
+- source stamp変更はsession stale。
+
+### Product native checkpoint
+
+Generated mediaで:
+
+```text
+解析
+→ CandidateへJump
+→ real Timeline split
+→ Next
+→ head/tail trim
+→ Next
+→ split piece move
+→ Next
+→ Undo/Redo semantic cycle
+→ Next
+```
+
+を再Decodeなしで通す。同一source copy/pasteを作り、copy側へ誤Jumpしないこともassertする。
+
+Native PASSはphysical mouse/keyboard gestureの証明へ拡張しない。Labで既に確定したmutation semanticsを製品が正しく使うことだけを証明する。
+
+## Slice 2 — W4-M 「見どころを確保」
+
+### User-visible behavior
+
+Main Reviewへ小さい操作を追加:
+
+```text
+確保時間 [30] 秒
+[ ★ 見どころを確保 ]
+```
+
+selected Candidateがある時だけ有効。押すとactive Sceneを変えず、`見どころメモ` Sceneへreference clipを追加する。
+
+### Memo semantics
+
+- start = `AnchorSourceTime`。前余白なし。
+- default duration = 30秒。
+- durationはユーザー指定可能。
+- 初版memo playback = 100%。durationはsource/reference clip秒数として扱う。
+- source終端まで指定秒数が無い場合は残りだけに短縮。
+- Frame = 0。
+- Layer = memo Sceneで**どのItemにも使われていない最小positive Layer**。1 memo = 1 Layer。
+- Remark = `見どころナビ｜<hit Filter names>`。
+- source fileをcopy/exportしない。FFmpeg cut/re-encodeなし。
+- Review target ItemをSplit/Trim/Moveしない。
+
+### Scene resolution
+
+初版は安全優先:
+
+1. Scene名 `見どころメモ` が0件 -> create。
+2. 1件 -> reuse。
+3. 2件以上 -> silentに選ばずfriendly failure。
+
+Memo Scene creationが一時的にactive Sceneを変えるhost behaviorへ備え、create前のReview Timelineを保持し、作成後に元へ戻す。
+
+MainModel取得などnon-public host accessは新しい狭い `MemoSceneAdapter` / `ProjectSceneAdapter` に隔離し、host capability change時はmemo機能だけfail closedする。
+
+### Duplicate memo guard
+
+同じNavigator memoを連打しない。初版はmemo Scene内のNavigator-owned itemについて:
+
+```text
+normalized SourceKey
++ Anchor ContentOffset (small tolerance)
+```
+
+が一致すればcaptured済みとみなし、追加しない。RemarkのFilter名差だけで同じ開始点を重複させない。
+
+### UI state
+
+Candidateにはsession内 `Memoed` stateを持たせてよい。再読込後のAuthorityはmemo Scene scan。UIの★は補助表示であり独自DBを正本にしない。
+
+### Expected code touch
+
+- new `Plugin/MemoSceneAdapter.cs`。
+- `NavigatorModel.cs`: CaptureDurationSeconds / CaptureMemoCommand / memoed refresh。
+- `NavigatorView.xaml`: capture duration + button。
+- CandidateにSourceKey/Anchor/Filter attributionを保持。
+- Native product proofをexisting workflowへ追加または小さい専用laneで追加。
+
+### Product native checkpoint
+
+- 0 memo Scene -> create。
+- existing single memo Scene -> reuse。
+- Main activeのままLayer1/2/3へFrame0追加。
+- 30秒と別指定秒数。
+- source終端shortening。
+- Japanese Filter Remark。
+- same source+anchor duplicate no-op。
+- 同名memo Sceneが複数ならfriendly fail closed。
+- Main source semantic signature unchanged。
+- save/reload後もScene/Layer/Remark/offset/length保持。
+- normal feature failureがYMM4 processへ未処理で漏れない。
+
+## Combined first-use checkpoint
+
+W1-RとW4-Mが終わった時点で、実際の編集フローを一度通す。
+
+```text
+長尺を一度解析
+→ Nextで候補確認
+→ 使えそうなら「見どころを確保」
+→ 必要ならMain側でSplit/Trim/Move
+→ Next
+→ さらにmemo確保
+→ 最後に「見どころメモ」Sceneを開く
+→ Layer ON/OFFで開始地点を確認
+```
+
+このcheckpointで重要なのは完成尺自動抽出ではない。**Reviewを止めず、開始地点を取りこぼさず、手作業のSplit/Moveを減らせること**。
+
+## Then W6-A false-positive feedback
+
+W1-R/W4-M後に既存計画へ戻る。
+
+1. Runtime candidateがどのFilter/revision/Transition center/source windowから来たかを保持する。
+2. `これは違う` で対象FilterだけへExplicit Negativeを登録する。
+3. Feature windowを保存しraw video再Decodeを要求しない。
+4. Positive regressionを優先し、Negative回避だけでKnown Positiveを落とす提案はrejectする。
+5. existing FilterStore Preview/Apply/revision/rollbackへ接続し第二の保存正本を作らない。
 
 ## Regression to preserve
 
-- Baseline Core27ケース。
-- Learning35ケース。通常generated mediaとvideo6.000s/audio6.016sのstream-copy素材の両方。
-- Product native47項目。正確なtested source/runはIMPLEMENTATION_STATUS参照。
-- 実行時にversion番号だけでYMM4を拒否しない。FFmpeg host assemblyはoptional/lazy、private copy/PATH fallbackなし。
-- Candidate attributionと同じSourceの別Timeline occurrenceを保持。
-- SliderとFilter切替で再Decodeしない。統合後の候補件数はmergeで変化するため、感度包含はraw centersでも確認する。
+- Baseline Core27。
+- Learning35 x 2 generated media conditions。
+- Existing product native47。
+- version番号だけでYMM4を拒否しない。
+- host bundled FFmpeg only; private copy/PATH fallbackなし。
+- Slider/Filter toggleで再Decodeしない。
+- Learning Filter trial/save/raw-free reuse。
+- Candidate attribution / same-source separate occurrence baseline。
 
-## Open but not blockers for W6-A
-
-- 実長尺の性能・メモリ・実X4品質、GPU、通常 `.ymme` 導入/upgrade。
-- wider project/scene/Undo/cancel lifetime、codec/VFR/timestamp variation。
-- 明示された消費型Inboxの削除経路。現在は非破壊であり、Pack保存だけを削除許可にしない。
-- Review Preset、教材結果の位置確認補助、長いラベル/多数FilterのUI調整。
+W1-Rで旧strict stale testは意味が変わるため、単に削除せず `source mutation stale` と `Timeline edit rebind` に分解して置換する。
 
 ## Execution discipline
 
-Pure workにnative Actionsを毎回使わない。変更をまとめ、Linux learning regression→host/UI変更checkpointのnative確認へ進める。文書だけの更新に新native runは不要。未確定のhost事実はLabの既存Evidenceを先に調べ、不足部分だけ新Probeにする。
+- 実装branchは小さく分ける。推奨:
+  - `feature/w1r-edit-time-rebinding`
+  - `feature/w4m-highlight-memo-capture`
+  - その後 `feature/w6-explicit-negative`
+- Core model/pure logicを先にcheap testsで固める。
+- host behaviorはLabで再調査しない。製品integrationだけnative。
+- doc-only変更ではnativeを回さない。
+- Archive Pluginへ依存や変更を追加しない。
+- private recording / Corpus / YMM4 binariesをcommitしない。
 
-録画アーカイブは依存先ではない。教材がその出力でも普通の動画として扱い、Archiveのコード/分類UI/Probeへ作業を広げない。private録画、学習Corpus、YMM4/FFmpeg binaryはcommitしない。
+## Stop / reopen conditions
+
+- current host factと製品integrationが矛盾する -> その狭いfactだけLabへ戻す。
+- split replacement lineageがunambiguousに決められないケース -> arbitrary guessを追加せずfail closed。
+- memo Sceneが複数存在する -> silent merge/selectしない。
+- source path/contentが変わる -> edit-time rebindで誤魔化さずstale/reanalysis。
+- memo captureが完成尺推定やmedia exportへ膨らみ始める -> current scopeへ戻す。

@@ -31,6 +31,10 @@ Preserve these current material decisions unless the user reopens them:
 - Runtime Profiles are non-exclusive and combine by OR/Union. Overlapping review episodes are merged without losing Profile attribution.
 - `ANY / N-of-M / ALL` is primarily Profile-internal Condition composition, not exclusive Profile selection.
 - **Global Sensitivity is a primary runtime control.** Higher sensitivity means wider recall / more candidates; lower sensitivity means stricter matching / fewer candidates. Sensitivity changes must not trigger re-decode or re-training.
+- **Edit-while-review is a first-class runtime workflow.** Split / trim / move / Undo-Redo of Timeline items must not automatically invalidate already-decoded source Feature data when the source file and analyzed source range remain valid. Rebind source-time candidates to the current Timeline instead.
+- Candidate identity must preserve an explicit **AnchorSourceTime** in addition to the wider review range. Learned Transition Filters use the actual matched transition center as the anchor; memo capture starts at that anchor with no pre-roll.
+- Source identity + source time is not sufficient to identify a Timeline occurrence after copy/paste. Preserve an occurrence lineage/discriminator and never jump to an arbitrary duplicate.
+- **「見どころを確保」 is a lightweight memo operation, not final cutting.** Create/reuse a dedicated `見どころメモ` Scene, place each memo at Frame 0 on one separate Layer, default to 30 seconds with user-configurable duration, store hit Filter attribution in Remark, and do not split/re-encode/mutate the review item merely to create the memo.
 - Session Feature Index, Persistent Learning Feature Pack and Profile knowledge have separate lifecycles.
 - Raw learning video is not the Corpus authority. Preserve enough primitive Feature data to replay Profile changes without raw video.
 - No silent self-training. Profile updates require replay/regression, preview and explicit apply/revision; rollback must remain possible.
@@ -95,7 +99,9 @@ Transition Candidate Extractor
 Transition Filter Authoring / Coverage Replay
 Profile Evaluator
 Episode Union / Merge / Attribution
+Review Source Session / Occurrence Rebinding
 Timeline Projection / Review Navigator
+Highlight Memo Scene Adapter / Capture
 Hard Positive / Explicit Negative / Revision Refinement
 ```
 
@@ -119,11 +125,14 @@ Filter/Profile ON/OFF
 Global Sensitivity
 candidate/hit count
 Prev / Next / List
+見どころを確保 + capture duration
 ```
 
 Keep Filter internals, Feature thresholds and learning/authoring controls out of the primary review flow unless the user explicitly opens an advanced surface.
 
 - Global Sensitivity must be easy to reach; do not bury it in advanced settings.
+- Memo capture duration should be directly understandable in the main Review surface; the default is 30 seconds and the memo begins at the hit anchor, not at the review range pre-roll.
+- Memo capture must keep the user's active review Scene unchanged. The dedicated memo Scene is a shelf: all clips at Frame 0, one clip per Layer.
 - Show Profile hit total separately from unique review candidate count.
 - Do not display uncalibrated similarity as a probability or correctness percentage.
 - Batch folder import and Filter-update preview; do not require per-video repetitive metadata entry.

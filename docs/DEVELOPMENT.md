@@ -51,27 +51,24 @@ Lab結果を採用するときは `docs/LAB_REFERENCES.md` に:
 ただし完全直列ではない。
 
 ```text
-W1 YMM4 Target/Projection Lab + adapter
-        ├──────────────┐
-        │              │
-        │        W2 Shared Feature Engine (pure work can start in parallel)
-        │              │
-        └──────┬───────┘
+W1 Target/Projection baseline ─┐
+                              ├─ W2 Shared Feature Engine
+W3 Learning Corpus/Transition ┘
                ↓
-        W3 Learning Corpus Intake
-               │
-        ┌──────┴───────┐
-        ↓              ↓
-W4 Multi-Profile   W5 Reverse Classification
-Runtime Review      (needs usable Profiles/Corpus)
-        └──────┬───────┘
+W4 Multi-Filter Runtime Review
                ↓
-        W6 Profile Refinement
+W5 Initial Transition Filter authoring / coverage
                ↓
-        W7 Distribution / First Value
+W1-R Edit-time rebinding
+               ↓
+W4-M Highlight memo capture
+               ↓
+W6 Explicit Negative / refinement
+               ↓
+W7 Real use / performance / distribution
 ```
 
-W1のhost probe待ちでも、YMM4非依存のFeature primitive、Pack schema、Profile evaluator、Episode union/mergeなどは安全に並行できる。
+W1/W2/W3/W4/W5のbaselineは既にある。現在はLab確定済みのedit/memo host factsを再調査せず、W1-R/W4-Mのpure model → product integrationの順で進める。
 
 ## 4. Branch / PR posture
 
@@ -81,7 +78,9 @@ W1のhost probe待ちでも、YMM4非依存のFeature primitive、Pack schema、
 - `feature/w2-feature-engine`
 - `feature/w3-learning-corpus`
 - `feature/w4-multi-profile-review`
-- `feature/w5-reverse-classification`
+- `feature/w5-transition-filter-authoring`
+- `feature/w1r-edit-time-rebinding`
+- `feature/w4m-highlight-memo-capture`
 - `feature/w6-profile-refinement`
 - `feature/w7-distribution`
 
@@ -103,13 +102,15 @@ PRには最低限:
 YMM4を起動せず確認できるものはここで閉じる。
 
 - source range / timing math after host semantics are fixed;
+- Candidate AnchorSourceTime / stable review order;
+- occurrence lineage replacement selection / ambiguity rejection;
 - Feature primitive calculations;
 - Feature Pack serialization/schema compatibility;
 - fingerprint/dedupe behavior;
 - Profile evaluator;
 - Multi-Profile hit union / episode merge / attribution;
-- Reverse Classification score plumbing;
-- Hard Example ranking;
+- Transition matcher / coverage replay;
+- Explicit Negative / contrast logic when W6 resumes;
 - Corpus replay / Profile regression gate;
 - cancellation/idempotency of internal jobs where host-independent.
 

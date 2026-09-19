@@ -1,4 +1,4 @@
-# Implementation checkpoint — W3 / initial W5 transition learning
+# Implementation checkpoint — W3/W5 learning baseline + v0.4.2 implementation prep
 
 設計正本は **v0.4.1 Transition Filter Learning / Recall-First Review**。この文書は実装・検証済みの範囲を記録する。初期学習経路が動いたことと、全機能完成・一般配布・実ゲーム品質は別のClaim。
 
@@ -105,14 +105,36 @@ Actual compiled Viewの **学習640x640・400x640 / メイン360x480** を描画
 
 Lab timing `0b69aed70a3f8a84cc2ede539d794cb4e8108677`、navigation-context source `3b52a3acff544ed0ec759d657f48364a415c485c`、FFmpeg locator evidence merge `c1acd43297f9a1c2dd5053e7c9667fb84fa237b5` を再利用した。Labのcallback receiptはvisible UIの証明ではないという訂正も維持する。今回Lab/録画アーカイブのコード・Probeは変更していない。詳細は [LAB_REFERENCES.md](LAB_REFERENCES.md)。
 
+## 2026-09-19 host-prep checkpoint — decided / not yet implemented
+
+今回の追加仕様は**まだNavigator製品コードへ未実装**。Labで必要host factsだけ先に確定した。
+
+- Split lifecycle: run `35359881285` / 23 required assertions PASS。
+- Trim / Move / Duplicate / UndoRedo lifecycle: run `35424106866` / 25 required assertions PASS。
+- Highlight memo Scene shelf: run `35430972362` / 37 required assertions PASS。documentation headもrun `35431074898`で同contract再確認。
+
+採用した製品方針:
+
+- Timeline-only editでFeature Indexを捨てず、source-time Candidateをcurrent Timelineへrebindする。
+- CandidateへReview Rangeとは別の `AnchorSourceTime` を持たせる。
+- copy/paste duplicateへ備え、source+timeだけで任意occurrenceを選ばない。
+- `見どころを確保` はAnchor開始・pre-rollなし・default30秒（設定可）。
+- 専用 `見どころメモ` SceneへFrame0固定、1 memo = 1 Layer。
+- Remarkへhit Filter名を残す。
+- memo作成のために元Review ItemをSplit/Trimせず、media cut/re-encodeもしない。
+
+これらはLab host fact + product designの確定であり、Navigator integration PASSではない。
+
 ## Remaining work / resume
 
-次は [IMPLEMENTATION_KICKOFF.md](IMPLEMENTATION_KICKOFF.md) のW6へ。W3/W5をゼロから作り直さない。
+次は [IMPLEMENTATION_KICKOFF.md](IMPLEMENTATION_KICKOFF.md) の **W1-R → W4-M → W6-A**。W3/W5をゼロから作り直さない。
 
-- Runtimeの `これは違う` → filter-specific Explicit Negative →保存済み特徴によるContrast改善。
+- **W1-R:** edit-time rebinding。split/trim/move/undo後も再Decodeなしで候補巡回し、duplicate ambiguityはfail closed。
+- **W4-M:** `見どころを確保`。memo SceneへFrame0 / separate Layerでreference Clip追加、default30秒/設定可、Remark attribution。
+- その後 **W6-A:** Runtimeの `これは違う` → filter-specific Explicit Negative →保存済み特徴によるContrast改善。
 - 誤検出低減と既存Positive保護、独立素材のcandidate density/query cost評価。clip-level一致と期待Transition地点を区別した評価。
 - 既に全教材を拾える場合の変更なし候補扱い、細かい学習UX/Review Preset、Profile増加時の性能改善。
-- broader reload/scene/Undo/cancel race、実codec/VFR/特殊timestamp、memory/ingest/query/GPU、通常 `.ymme` install/upgradeとhands-on acceptance。
+- W1-R/W4-Mのproduct-native integration、broader reload/scene/cancel race、実codec/VFR/特殊timestamp、memory/ingest/query/GPU、通常 `.ymme` install/upgradeとhands-on acceptance。
 - 消費型Inboxの明示所有権・削除transactionは未実装。現在の非破壊Importとは分けて実装・検証する。
 
 現行はraw-video-freeの再利用が可能だが、元動画を削除する権限や機能を追加したわけではない。未知の将来ABIやprocess全体の障害まで無停止保証するものでもない。

@@ -165,6 +165,33 @@ Negative fixture候補:
 - Prev/Next/List -> correct YMM4 occurrence;
 - UI remains responsive during query/background work。
 
+### W1-R — edit-time rebinding
+
+- one analysis / one Feature Index remains reusable after real host split;
+- head/tail trim only invalidates candidates whose AnchorSourceTime is no longer contained;
+- moved split piece is resolved at its new Frame without re-decode;
+- Undo/Redo semantic state can be rebound from current Timeline;
+- copied identical source occurrence is not chosen arbitrarily;
+- ambiguous replacement fails closed rather than jumping to the wrong occurrence;
+- source file mutation still invalidates source Feature authority.
+
+Use the Lab's already-adopted split/trim/move/duplicate/UndoRedo facts. Product native smoke proves only Navigator integration against those facts.
+
+### W4-M — Highlight memo capture
+
+- `見どころメモ` Scene create/reuse through the product adapter;
+- active Review Scene remains unchanged;
+- selected Candidate AnchorSourceTime becomes memo ContentOffset with no pre-roll;
+- memo clips all start at Frame0 and occupy separate Layers;
+- default30s and another configured duration both work;
+- source-end shortening is safe;
+- Remark keeps hit Filter attribution;
+- same source+anchor duplicate capture is rejected/no-op;
+- duplicate memo Scene name fails closed;
+- source Review Item semantic signature is unchanged;
+- save/reload keeps memo Scene / Guid / Layer / Frame / ContentOffset / Length / Remark.
+
+UI proof should include the capture-duration control and `見どころを確保` button inside the tested viewport. It need not claim physical Layer ON/OFF interaction unless separately exercised.
 ### W7
 
 - full background analysis/cancel;
