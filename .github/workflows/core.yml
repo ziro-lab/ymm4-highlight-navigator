@@ -1,16 +1,30 @@
 name: Navigator core
 on:
+  workflow_call:
   workflow_dispatch:
+  push:
+    branches: ['feature/w1r-edit-time-rebinding']
+    paths:
+      - 'src/Ymm4HighlightNavigator.Core/**'
+      - 'tests/Ymm4HighlightNavigator.Core.Tests/**'
+      - 'tests/Ymm4HighlightNavigator.Rebinding.Tests/**'
+      - 'tests/Ymm4HighlightNavigator.Learning.Tests/**'
+      - 'tools/fixtures/**'
+      - 'tools/verify-rebinding.py'
+      - '.github/workflows/core.yml'
   pull_request:
     paths:
       - 'src/Ymm4HighlightNavigator.Core/**'
       - 'tests/Ymm4HighlightNavigator.Core.Tests/**'
+      - 'tests/Ymm4HighlightNavigator.Rebinding.Tests/**'
+      - 'tests/Ymm4HighlightNavigator.Learning.Tests/**'
       - 'tools/fixtures/**'
+      - 'tools/verify-rebinding.py'
       - '.github/workflows/core.yml'
 permissions:
   contents: read
 concurrency:
-  group: navigator-core-${{ github.head_ref || github.ref }}
+  group: navigator-core-${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 jobs:
   core:
@@ -21,6 +35,12 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 1
+      - name: Retain exact tested source
+        run: |
+          mkdir -p out
+          git archive --format=zip --output=out/tested-source.zip HEAD
+          git rev-parse HEAD > out/tested-source-sha.txt
+          sha256sum out/tested-source.zip > out/tested-source.sha256
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1
         with:
           dotnet-version: '10.0.400'
@@ -36,6 +56,18 @@ jobs:
         run: dotnet build tests/Ymm4HighlightNavigator.Core.Tests -c Release --nologo -warnaserror
       - name: Pure, negative and real FFmpeg integration tests
         run: dotnet run --project tests/Ymm4HighlightNavigator.Core.Tests -c Release --no-build -- --require-media --ffmpeg "$(command -v ffmpeg)" --ffprobe "$(command -v ffprobe)" --fixture out/fixture.mkv --out out/core-tests
+      - name: Rebinding build and deterministic cases
+        run: |
+          dotnet build tests/Ymm4HighlightNavigator.Rebinding.Tests -c Release --nologo -warnaserror
+          dotnet run --project tests/Ymm4HighlightNavigator.Rebinding.Tests -c Release --no-build -- --out out/rebinding-tests
+      - name: Preserve learning regressions on ordinary and stream-copy media
+        run: |
+          ffmpeg -nostdin -v error -i out/fixture.mkv -t 6 -map 0 -c copy out/trim.mkv
+          ffprobe -v error -show_entries 'format=duration,start_time:stream=codec_type,duration:stream_tags=DURATION' -of json out/trim.mkv > out/trim-metadata.json
+          dotnet build tests/Ymm4HighlightNavigator.Learning.Tests -c Release --nologo -warnaserror
+          dotnet run --project tests/Ymm4HighlightNavigator.Learning.Tests -c Release --no-build -- --ffmpeg "$(command -v ffmpeg)" --ffprobe "$(command -v ffprobe)" --fixture out/fixture.mkv --out out/learning-tests
+          dotnet run --project tests/Ymm4HighlightNavigator.Learning.Tests -c Release --no-build -- --ffmpeg "$(command -v ffmpeg)" --ffprobe "$(command -v ffprobe)" --fixture out/trim.mkv --out out/learning-trim-tests
+          python3 tools/verify-rebinding.py
       - name: Check evidence identity and required cases
         run: |
           python3 - <<'PY'
@@ -55,9 +87,16 @@ jobs:
         with:
           name: navigator-core-evidence
           path: |
+            out/rebinding-tests/results.json
+            out/learning-tests/results.json
+            out/learning-trim-tests/results.json
+            out/trim-metadata.json
             out/core-tests/results.json
             out/core-tests/size.json
             out/dotnet-info.txt
             out/ffmpeg-version.txt
+            out/tested-source.zip
+            out/tested-source-sha.txt
+            out/tested-source.sha256
           if-no-files-found: error
           retention-days: 7

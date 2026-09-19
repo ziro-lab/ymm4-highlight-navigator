@@ -2,10 +2,11 @@ name: Navigator native checkpoint
 on:
   workflow_dispatch:
   push:
-    branches: ['feature/w1-projection-spine', 'feature/use-ymm4-bundled-ffmpeg', 'feature/capability-guard-no-crash', 'feature/w3-w5-transition-learning']
+    branches: ['feature/w1-projection-spine', 'feature/use-ymm4-bundled-ffmpeg', 'feature/capability-guard-no-crash', 'feature/w3-w5-transition-learning', 'feature/w1r-edit-time-rebinding']
     paths:
       - 'src/Ymm4HighlightNavigator.Plugin/**'
       - 'tests/Ymm4HighlightNavigator.Plugin.Tests/**'
+      - 'tools/fixtures/generate-rebinding.py'
       - '.github/workflows/native.yml'
 permissions:
   contents: read
@@ -13,7 +14,10 @@ concurrency:
   group: navigator-native-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  pure-preflight:
+    uses: ./.github/workflows/core.yml
   product-native:
+    needs: pure-preflight
     runs-on: windows-latest
     timeout-minutes: 12
     steps:
@@ -45,6 +49,9 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'Bundled backend version could not be recorded'}
           python tools/fixtures/generate.py --ffmpeg "$ffmpeg" --output out/fixture/source.mkv
           if($LASTEXITCODE -ne 0){throw 'Fixture generation failed'}
+          python tools/fixtures/generate-rebinding.py --ffmpeg "$ffmpeg" --output out/fixture/rebinding.mkv
+          if($LASTEXITCODE -ne 0){throw 'W1-R fixture generation failed'}
+          "NAV_REBINDING_MEDIA=$((Resolve-Path 'out/fixture/rebinding.mkv').Path)" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
           Get-FileHash $ffmpeg,$ffprobe -Algorithm SHA256 | Format-List | Out-File out/host-backend-hashes.txt
       - name: Build real distribution and separate proof assembly
         shell: pwsh
@@ -86,6 +93,7 @@ jobs:
             out/evidence/result.json
             out/evidence/summary.json
             out/evidence/learning-summary.json
+            out/evidence/rebinding-summary.json
             out/evidence/assertions.txt
             out/evidence/startup.txt
             out/evidence/*.png

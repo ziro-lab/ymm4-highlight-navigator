@@ -64,7 +64,7 @@ public static class ProfileEvaluator
         }
         int required = profile.Mode switch { MatchMode.Any => 1, MatchMode.All => conditions.Length, _ => profile.RequiredMatches };
         if (required < 1 || required > conditions.Length) throw new ArgumentException("Invalid N-of-M condition count.");
-        var intervals = new List<TimeRange>(); int start = -1;
+        var intervals = new List<ProfileHit>(); int start = -1;
         for (int i = 0; i <= table.Pack.Video.Length; i++)
         {
             bool hit = i < table.Pack.Video.Length && conditions.Count(c => table.Raw(c.Axis)[i] >= c.RawFloor / sensitivity && table.Rank(c.Axis)[i] >= c.SalienceThreshold / sensitivity) >= required;
@@ -73,12 +73,14 @@ public static class ProfileEvaluator
             {
                 double from = table.Pack.Video[start].TimeSeconds;
                 double to = i == table.Pack.Video.Length ? table.Pack.Header.EndSeconds : table.Pack.Video[i].TimeSeconds;
-                if (to - from >= profile.MinimumSeconds) intervals.Add(new(from, to));
+                if (to - from >= profile.MinimumSeconds)
+                    intervals.Add(new(profile.Id, new(from, to), table.Pack.Video.Skip(start).Take(i - start).Select(v => v.TimeSeconds).ToImmutableArray()));
                 start = -1;
             }
         }
-        var merged = TimeRange.Union(intervals, profile.MergeGapSeconds);
-        var expanded = merged.Select(r => new TimeRange(Math.Max(table.Pack.Header.StartSeconds, r.Start - profile.PreRollSeconds), Math.Min(table.Pack.Header.EndSeconds, r.End + profile.PostRollSeconds)));
-        return new(profile.Id, true, null, TimeRange.Union(expanded).Select(r => new ProfileHit(profile.Id, r)).ToImmutableArray());
+        var merged = EpisodeUnion.Build(intervals, profile.MergeGapSeconds).Episodes;
+        var expanded = merged.Select(e => new ProfileHit(profile.Id,
+            new(Math.Max(table.Pack.Header.StartSeconds, e.Range.Start - profile.PreRollSeconds), Math.Min(table.Pack.Header.EndSeconds, e.Range.End + profile.PostRollSeconds)), e.AnchorSourceTimes));
+        return new(profile.Id, true, null, EpisodeUnion.Build(expanded).Episodes.Select(e => new ProfileHit(profile.Id, e.Range, e.AnchorSourceTimes)).ToImmutableArray());
     }
 }

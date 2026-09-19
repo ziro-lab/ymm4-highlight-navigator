@@ -1,11 +1,18 @@
-# Implementation checkpoint — W3/W5 learning baseline + v0.4.2 implementation prep
+# Implementation checkpoint — v0.4.2 W1-R edit-time rebinding
 
-設計正本は **v0.4.1 Transition Filter Learning / Recall-First Review**。この文書は実装・検証済みの範囲を記録する。初期学習経路が動いたことと、全機能完成・一般配布・実ゲーム品質は別のClaim。
+設計正本は **DESIGN v0.4.2**。この文書は実装・検証済みの範囲を記録する。初期学習経路が動いたことと、全機能完成・一般配布・実ゲーム品質は別のClaim。
+
+## W1-R checkpoint
+
+W1-Rのcurrent tested source、run/job/artifact/hash、実装境界は [W1_R_CHECKPOINT.md](W1_R_CHECKPOINT.md) に記録する。後続docs commit/main mergeのSHAをtested sourceへ読み替えない。
+
+`decided != implemented != validated != accepted`。編集後の機能統合と、通常配布・物理操作・実素材精度・ユーザー受入は別。
 
 ## Current state
 
 | 領域 | 実装と検証の範囲 |
 |---|---|
+| W1-R | Source anchor、安定順、known-lineage優先、一意partition再bind、個別Unavailable、current-map Jumpを実装。検証結果は上記checkpoint参照 |
 | W1 / W2 / W4 | 既存Target/Projection、CPU特徴、Pack、複数フィルターReviewを維持 |
 | W3-A | 普通の動画/直下フォルダーの非破壊batch取込、重複検出、Positive membership、登録transactionを実装 |
 | W3-B | 元動画なしでPack/Corpusを再読込し、同じ特徴・Transitionを再構築 |
@@ -41,7 +48,7 @@ UIは **候補あり（位置未確認）／未検出・重点教材／切替候
 
 試用はrevision0のsession候補。保存時にCorpus revision/Active Filter revisionを再確認し、現Corpusを再計算する。以前一致していた教材を落とす候補は拒否。新revisionは別ファイルへ保存し、Active headを最後に更新する。完全なW6誤検出学習・密度gateを実装済みとは扱わない。
 
-## Pure / media verification — current
+## Earlier W3/W5 pure / media verification — historical
 
 - Tested source/checkout: `2d4a3a355d6f80dd866f2d651cab8430300039e7`
 - [Learning run 35140556049](https://github.com/ziro-lab/ymm4-highlight-navigator/actions/runs/35140556049)
@@ -58,7 +65,7 @@ Required-case一覧と結果/checkoutを独立gateで照合。通常素材に加
 
 ケースにはdedupe、複数Positive、未所属非Negative、writer contention、破損/cancel保存保護、raw-free再生成、clip中央に依存しないTransition、定常素材の偽Transition防止、複数切替、source offset、局所表現の余白長非依存、複数Pattern OR、感度包含、stale draft、Positive回帰拒否、明示rollbackを含む。
 
-## Product native verification — current
+## Earlier W3/W5 product native verification — historical
 
 - Tested source/checkout: **`4ada8fad20a65a9cf48ad86795a281f36ba5c401`**
 - Tested tree: `36b47a014368253fe193facac77560b1c892629f`
@@ -105,9 +112,9 @@ Actual compiled Viewの **学習640x640・400x640 / メイン360x480** を描画
 
 Lab timing `0b69aed70a3f8a84cc2ede539d794cb4e8108677`、navigation-context source `3b52a3acff544ed0ec759d657f48364a415c485c`、FFmpeg locator evidence merge `c1acd43297f9a1c2dd5053e7c9667fb84fa237b5` を再利用した。Labのcallback receiptはvisible UIの証明ではないという訂正も維持する。今回Lab/録画アーカイブのコード・Probeは変更していない。詳細は [LAB_REFERENCES.md](LAB_REFERENCES.md)。
 
-## 2026-09-19 host-prep checkpoint — decided / not yet implemented
+## 2026-09-19 host-prep checkpoint — historical design preparation
 
-今回の追加仕様は**まだNavigator製品コードへ未実装**。Labで必要host factsだけ先に確定した。
+この準備時点では追加仕様はNavigator製品コードへ未実装だった。W1-Rの後続実装は上記checkpointを参照。W4-M memoは引き続き未実装。Labで必要host factsだけ先に確定した。
 
 - Split lifecycle: run `35359881285` / 23 required assertions PASS。
 - Trim / Move / Duplicate / UndoRedo lifecycle: run `35424106866` / 25 required assertions PASS。
@@ -127,14 +134,14 @@ Lab timing `0b69aed70a3f8a84cc2ede539d794cb4e8108677`、navigation-context sourc
 
 ## Remaining work / resume
 
-次は [IMPLEMENTATION_KICKOFF.md](IMPLEMENTATION_KICKOFF.md) の **W1-R → W4-M → W6-A**。W3/W5をゼロから作り直さない。
+W1-Rの範囲を完了・検証した後の次工程は [IMPLEMENTATION_KICKOFF.md](IMPLEMENTATION_KICKOFF.md) の **W4-M → W6-A**。今回は進めない。W3/W5をゼロから作り直さない。
 
-- **W1-R:** edit-time rebinding。split/trim/move/undo後も再Decodeなしで候補巡回し、duplicate ambiguityはfail closed。
+- **W1-Rの残る境界:** 一意partitionを観測できない複合編集・曖昧replacementはfail closed。source length/write stampは維持し、全ファイルの再hashを各Nextへ追加しない。
 - **W4-M:** `見どころを確保`。memo SceneへFrame0 / separate Layerでreference Clip追加、default30秒/設定可、Remark attribution。
 - その後 **W6-A:** Runtimeの `これは違う` → filter-specific Explicit Negative →保存済み特徴によるContrast改善。
 - 誤検出低減と既存Positive保護、独立素材のcandidate density/query cost評価。clip-level一致と期待Transition地点を区別した評価。
 - 既に全教材を拾える場合の変更なし候補扱い、細かい学習UX/Review Preset、Profile増加時の性能改善。
-- W1-R/W4-Mのproduct-native integration、broader reload/scene/cancel race、実codec/VFR/特殊timestamp、memory/ingest/query/GPU、通常 `.ymme` install/upgradeとhands-on acceptance。
+- W4-Mのproduct-native integration、broader reload/scene/cancel race、実codec/VFR/特殊timestamp、memory/ingest/query/GPU、通常 `.ymme` install/upgradeとhands-on acceptance。
 - 消費型Inboxの明示所有権・削除transactionは未実装。現在の非破壊Importとは分けて実装・検証する。
 
 現行はraw-video-freeの再利用が可能だが、元動画を削除する権限や機能を追加したわけではない。未知の将来ABIやprocess全体の障害まで無停止保証するものでもない。

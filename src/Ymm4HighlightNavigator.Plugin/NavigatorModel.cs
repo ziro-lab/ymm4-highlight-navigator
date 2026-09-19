@@ -39,15 +39,36 @@ public sealed class ProfileChoice(SceneProfile profile) : NotifyModel
     public string Count { get => count; internal set { count = value; Changed(); } }
 }
 
-public sealed class Candidate(Guid targetId, TimeRange source, int frame, int fps, ImmutableArray<string> profiles, string filename) : NotifyModel
+public sealed class Candidate(ReviewSourceSession session, ReviewEpisode episode, ImmutableArray<string> profiles, string filename) : NotifyModel
 {
-    public Guid TargetId { get; } = targetId;
-    public TimeRange Source { get; } = source;
-    public int Frame { get; } = frame;
+    public Guid TargetId { get; } = session.ReviewTargetId;
+    public string SourceKey { get; } = session.SourceKey;
+    public TimeRange Source { get; } = episode.Range;
+    public ImmutableArray<ProfileHit> Hits { get; } = episode.Hits;
+    public double AnchorSourceTime { get; } = episode.AnchorSourceTime;
+    public StableReviewOrder StableOrderKey { get; } = new(session.CaptureOrder, episode.AnchorSourceTime);
+    public ReviewCandidateIdentity Identity { get; } = ReviewCandidateIdentity.Create(session.ReviewTargetId, session.SourceKey, episode.AnchorSourceTime);
+    public int? Frame { get; private set; }
+    public int Fps { get; private set; } = session.Capture.Fps;
+    public RebindStatus Availability { get; private set; } = RebindStatus.Unavailable;
+    public string? UnavailableReason { get; private set; }
+    public bool Available => Frame.HasValue && Availability == RebindStatus.Available;
     public ImmutableArray<string> Profiles { get; } = profiles;
     private bool visited;
-    public bool Visited { get => visited; internal set { visited = value; Changed(); Changed(nameof(Display)); } }
-    public string Display => $"{(Visited ? "✓ " : "")}{TimeSpan.FromSeconds(Frame / (double)fps):hh\\:mm\\:ss\\.fff}  {string.Join(" / ", Profiles)}  {filename}";
+    public bool Visited { get => visited; internal set { if (visited == value) return; visited = value; Changed(); Changed(nameof(Display)); } }
+    internal void SetProjection(CandidateProjection projection)
+    {
+        Frame = projection.Frame; Fps = projection.Fps; Availability = projection.Status; UnavailableReason = projection.Reason;
+        Changed(nameof(Frame)); Changed(nameof(Availability)); Changed(nameof(Available)); Changed(nameof(UnavailableReason)); Changed(nameof(Display));
+    }
+    public string Display
+    {
+        get
+        {
+            string position = Frame is int frame ? TimeSpan.FromSeconds(frame / (double)Fps).ToString(@"hh\:mm\:ss\.fff") : "移動不可";
+            return $"{(Visited ? "✓ " : "")}{position}  {string.Join(" / ", Profiles)}  {filename}";
+        }
+    }
 }
 
 public sealed class RelayCommand(Action action, Func<bool> allowed) : ICommand
@@ -60,14 +81,15 @@ public sealed class RelayCommand(Action action, Func<bool> allowed) : ICommand
 public sealed partial class NavigatorModel : NotifyModel, ITimelineToolViewModel, IToolViewModel, IDisposable
 {
     private sealed record Analyzed(string SourceKey, FeatureTable Table, TransitionIndex Transitions);
-    private sealed record QueryResult(TargetSnapshot Target, ReviewEpisode Episode);
+    private sealed record QueryResult(ReviewSourceSession Session, ReviewEpisode Episode);
     private sealed class ForwardProgress(Action<AnalysisProgress> report) : IProgress<AnalysisProgress>
     {
         public void Report(AnalysisProgress value) => report(value);
     }
     private readonly TargetAdapter adapter = new();
     private readonly List<Analyzed> analyzed = [];
-    private readonly Dictionary<Guid, List<TimeRange>> visited = [];
+    private readonly HashSet<ReviewCandidateIdentity> visited = [];
+    private int backendCallCount;
     private CancellationTokenSource? analysisCancel, queryCancel;
     private int generation, queryGeneration;
     private bool disposed, busy, querying, hasQueryResult;
@@ -81,6 +103,7 @@ public sealed partial class NavigatorModel : NotifyModel, ITimelineToolViewModel
     public ObservableCollection<Candidate> Candidates { get; } = [];
     public ImmutableArray<TargetSnapshot> Targets => adapter.Snapshots;
     public int DecodedRangeCount => analyzed.Count;
+    public int AnalysisBackendCallCount => Volatile.Read(ref backendCallCount);
     public bool IsBusy { get => busy; private set { busy = value; Changed(); Changed(nameof(CanConfigure)); Commands(); } }
     public bool IsQuerying { get => querying; private set { querying = value; Changed(); Changed(nameof(CandidateSummary)); Commands(); } }
     public bool CanConfigure => !IsBusy;
@@ -161,6 +184,7 @@ public sealed partial class NavigatorModel : NotifyModel, ITimelineToolViewModel
                     token.ThrowIfCancellationRequested();
                     var item = work[index]; int currentIndex = index;
                     var rangeProgress = new ForwardProgress(p => report.Report(p with { Fraction = (currentIndex + p.Fraction) / work.Length }));
+                    Interlocked.Increment(ref backendCallCount);
                     var pack = await backend.ExtractAsync(item.Source, item.Range.Start, item.Range.End, progress: rangeProgress, token: token).ConfigureAwait(false);
                     rows.Add(new(item.Source, new FeatureTable(pack), TransitionIndex.Build(pack, token)));
                 }
@@ -182,7 +206,7 @@ public sealed partial class NavigatorModel : NotifyModel, ITimelineToolViewModel
         if (disposed || IsBusy || analyzed.Count == 0) return;
         queryCancel?.Cancel(); queryCancel?.Dispose(); queryCancel = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken); var token = queryCancel.Token;
         int stamp = generation, q = ++queryGeneration;
-        var sources = analyzed.ToArray(); var targets = Targets;
+        var sources = analyzed.ToArray(); var sessions = adapter.Sessions;
         var profiles = Profiles.Select(p => (p.Profile, p.Learned, p.Enabled)).ToArray(); double sens = Sensitivity;
         IsQuerying = true;
         try
@@ -198,42 +222,42 @@ public sealed partial class NavigatorModel : NotifyModel, ITimelineToolViewModel
                         ? ProfileEvaluator.Evaluate(source.Table, p.Profile, sens)
                         : TransitionMatcher.Evaluate(source.Transitions, p.Learned, sens, token))).ToArray();
                     foreach (var e in evaluations) if (!e.Evaluation.Compatible) unavailable[e.Choice.Profile.Id]++;
-                    foreach (var target in targets.Where(t => StringComparer.OrdinalIgnoreCase.Equals(t.SourceKey, source.SourceKey)))
+                    foreach (var session in sessions.Where(s => ReviewSourceIdentity.Same(s.SourceKey, source.SourceKey)))
                     {
+                        var target = session.Capture;
                         var included = new List<ProfileHit>();
                         foreach (var e in evaluations)
                         foreach (var hit in e.Evaluation.Hits)
                         {
-                            var clipped = hit.Range.Intersect(target.SourceRange);
-                            if (clipped == null || target.FirstFrame(clipped.Value) == null) continue;
+                            var clipped = hit.Clip(target.SourceRange);
+                            if (clipped is null) continue;
                             counts[e.Choice.Profile.Id]++;
-                            if (e.Choice.Enabled) included.Add(new(hit.ProfileId, clipped.Value));
+                            if (e.Choice.Enabled) included.Add(clipped);
                         }
-                        output.AddRange(EpisodeUnion.Build(included).Episodes.Select(e => new QueryResult(target, e)));
+                        output.AddRange(EpisodeUnion.Build(included).Episodes.Select(e => new QueryResult(session, e)));
                     }
                 }
                 return (output, counts, unavailable);
             }, token);
             token.ThrowIfCancellationRequested();
             if (disposed || stamp != generation || q != queryGeneration) return;
-            adapter.ValidateCurrent();
+            adapter.RefreshCurrent();
             var next = new List<Candidate>();
             foreach (var row in result.output)
             {
-                int? frame = adapter.Project(row.Target.Id, row.Episode.Range);
-                if (frame == null) continue;
                 var names = row.Episode.ProfileIds.Select(id => profiles.Single(p => p.Profile.Id == id).Profile.Name).ToImmutableArray();
-                var candidate = new Candidate(row.Target.Id, row.Episode.Range, frame.Value, row.Target.Fps, names, Path.GetFileName(row.Target.SourceKey));
-                candidate.Visited = visited.TryGetValue(candidate.TargetId, out var seen) && TimeRange.Union(seen).Any(r => r.Start <= candidate.Source.Start && r.End >= candidate.Source.End);
+                var candidate = new Candidate(row.Session, row.Episode, names, Path.GetFileName(row.Session.SourceKey));
+                candidate.SetProjection(adapter.ProjectCurrent(candidate.TargetId, candidate.AnchorSourceTime));
+                candidate.Visited = visited.Contains(candidate.Identity);
                 next.Add(candidate);
             }
             var old = Selected;
-            Candidates.Clear(); foreach (var item in next.OrderBy(c => c.Frame).ThenBy(c => c.TargetId)) Candidates.Add(item);
-            Selected = old == null ? null : Candidates.FirstOrDefault(c => c.TargetId == old.TargetId && c.Source == old.Source);
+            Candidates.Clear(); foreach (var item in next.OrderBy(c => c.StableOrderKey)) Candidates.Add(item);
+            Selected = old == null ? null : Candidates.FirstOrDefault(c => c.Identity == old.Identity);
             hitTotal = profiles.Where(p => p.Enabled).Sum(p => result.counts[p.Profile.Id]); hasQueryResult = true;
             foreach (var p in Profiles) p.Count = $"{result.counts[p.Profile.Id]}件" + (result.unavailable[p.Profile.Id] > 0 ? "（一部素材は非対応）" : "");
             Changed(nameof(CandidateSummary));
-            Status = Candidates.Count == 0 ? "候補がありません。フィルターをONにするか、感度を広げてください。" : "前・次で候補へ移動できます。";
+            Status = Candidates.Count == 0 ? "候補がありません。フィルターをONにするか、感度を広げてください。" : Candidates.All(c => !c.Available) ? AllUnavailableStatus() : "前・次で候補へ移動できます。";
         }
         catch (OperationCanceledException)
         {
@@ -248,19 +272,35 @@ public sealed partial class NavigatorModel : NotifyModel, ITimelineToolViewModel
         finally { if (q == queryGeneration) IsQuerying = false; }
     }
 
+    public void RefreshProjections()
+    {
+        adapter.RefreshCurrent();
+        foreach (var candidate in Candidates) candidate.SetProjection(adapter.ProjectCurrent(candidate.TargetId, candidate.AnchorSourceTime));
+        Changed(nameof(CandidateSummary));
+    }
+    private string AllUnavailableStatus() => "現在移動できる候補がありません。" + Candidates.FirstOrDefault()?.UnavailableReason;
     public void JumpSelected()
     {
         var candidate = Selected ?? throw new InvalidOperationException("候補を選んでください。");
-        adapter.Jump(candidate.TargetId, candidate.Source);
-        if (!visited.TryGetValue(candidate.TargetId, out var seen)) visited[candidate.TargetId] = seen = [];
-        seen.Add(candidate.Source); candidate.Visited = true;
+        RefreshProjections();
+        if (!candidate.Available) throw new InvalidOperationException(candidate.UnavailableReason);
+        // Never jump to Candidate.Frame: it is display-only and may have been projected before an edit.
+        candidate.SetProjection(adapter.JumpAnchor(candidate.TargetId, candidate.AnchorSourceTime));
+        visited.Add(candidate.Identity); candidate.Visited = true;
+        Status = "候補へ移動しました。";
     }
     public void Move(int direction)
     {
-        if (Candidates.Count == 0) return;
-        int current = Selected == null ? (direction >= 0 ? -1 : Candidates.Count) : Candidates.IndexOf(Selected);
-        int next = Math.Clamp(current + Math.Sign(direction), 0, Candidates.Count - 1);
-        Selected = Candidates[next]; JumpSelected();
+        if (Candidates.Count == 0 || direction == 0) return;
+        RefreshProjections();
+        int current = Selected == null ? (direction > 0 ? -1 : Candidates.Count) : Candidates.IndexOf(Selected);
+        int? next = ReviewNavigation.Next(Candidates.Count, current, direction, i => Candidates[i].Available);
+        if (next is null)
+        {
+            Status = Candidates.All(c => !c.Available) ? AllUnavailableStatus() : direction > 0 ? "最後の移動可能な候補です。" : "最初の移動可能な候補です。";
+            return;
+        }
+        Selected = Candidates[next.Value]; JumpSelected();
     }
     public void Cancel() { analysisCancel?.Cancel(); queryCancel?.Cancel(); }
     public ToolState SaveState() => new() { Title = Title };

@@ -62,9 +62,31 @@ public sealed record TargetSnapshot(Guid Id, string SourceKey, int StartFrame, i
     }
 }
 
-public sealed record ProfileHit(string ProfileId, TimeRange Range);
+public sealed record ProfileHit(string ProfileId, TimeRange Range, ImmutableArray<double> Anchors = default)
+{
+    // Legacy callers without metadata use the unexpanded range start. Evaluators supply actual hits.
+    public ImmutableArray<double> AnchorSourceTimes => Anchors.IsDefault ? [Range.Start] : Anchors;
+    public bool Equals(ProfileHit? other) => other is not null && ProfileId == other.ProfileId && Range == other.Range
+        && AnchorSourceTimes.SequenceEqual(other.AnchorSourceTimes);
+    public override int GetHashCode()
+    {
+        var hash = new HashCode(); hash.Add(ProfileId); hash.Add(Range);
+        foreach (double anchor in AnchorSourceTimes) hash.Add(anchor);
+        return hash.ToHashCode();
+    }
+    public ProfileHit? Clip(TimeRange coverage)
+    {
+        var range = Range.Intersect(coverage);
+        if (range is null) return null;
+        var anchors = AnchorSourceTimes.Where(t => t >= range.Value.Start && t < range.Value.End).ToImmutableArray();
+        return anchors.IsEmpty ? null : new(ProfileId, range.Value, anchors);
+    }
+}
 public sealed record ReviewEpisode(TimeRange Range, ImmutableArray<ProfileHit> Hits)
 {
+    public ImmutableArray<double> AnchorSourceTimes => Hits.SelectMany(h => h.AnchorSourceTimes).Distinct().Order().ToImmutableArray();
+    // One episode remains one review candidate. Retain every contributing anchor in Hits.
+    public double AnchorSourceTime => AnchorSourceTimes[0];
     public ImmutableArray<string> ProfileIds => Hits.Select(x => x.ProfileId).Distinct(StringComparer.Ordinal).Order().ToImmutableArray();
 }
 public sealed record ReviewQueue(int HitTotal, ImmutableArray<ReviewEpisode> Episodes);
@@ -79,6 +101,8 @@ public static class EpisodeUnion
         foreach (var hit in hits.OrderBy(h => h.Range.Start).ThenBy(h => h.Range.End).ThenBy(h => h.ProfileId, StringComparer.Ordinal))
         {
             Guard.Range(hit.Range.Start, hit.Range.End);
+            if (hit.AnchorSourceTimes.IsEmpty || hit.AnchorSourceTimes.Any(t => !double.IsFinite(t) || t < hit.Range.Start || t >= hit.Range.End))
+                throw new ArgumentException("Hit anchors must be inside the half-open review range.");
             if (episodes.Count > 0 && hit.Range.Start <= episodes[^1].Range.End + mergeGapSeconds)
             {
                 var previous = episodes[^1];
