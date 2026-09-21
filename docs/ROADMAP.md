@@ -153,8 +153,23 @@ Runtime候補へ「これは違う」を追加。その前後Featureと、対象
 
 通常配布はまだ行っていない。NavigatorはFFmpegを独自配布せず、host bundleを使う。
 
+## Planned UI/UX-first sequencing
+
+Before expanding the generic filter catalog, perform the UI/UX structure pass recorded in [UI_UX_GENERIC_FILTER_PLAN.md](UI_UX_GENERIC_FILTER_PLAN.md).
+
+Preferred sequence:
+
+1. define/freeze the user meaning of **Filter / Group / Set** and split Main Review / Authoring / Management responsibilities;
+2. validate that flow with existing capabilities;
+3. add only a **2–3 filter minimal Generic Filter Pack**;
+4. pressure-test the UI with multiple active filters and attribution;
+5. freeze the interaction model;
+6. then expand Generic Filters, followed later by Audio and Reference Image/State search only as justified.
+
+This is a sequencing change, not a cancellation of W4-M/W6. Highlight Memo and Explicit Negative remain planned capabilities and should be surfaced through the revised review UX rather than driving a separate UI structure.
+
 ## Next execution and budget
 
-W1-R checkpoint後は [IMPLEMENTATION_KICKOFF.md](IMPLEMENTATION_KICKOFF.md) の **W4-M → W6-A**。このW1-R作業では実装しない。W3/W5を作り直さない。必要に応じて少数の独立した実教材で初期Filterの弱点も確認するが、未提供データを持っている前提では進めない。
+W1-R checkpoint後の次着手は、まず [UI_UX_GENERIC_FILTER_PLAN.md](UI_UX_GENERIC_FILTER_PLAN.md) の **UX-1 → UX-2**。その後、最小Generic Filter PackでUXをpressure-testしてinteraction modelをfreezeする。W4-M / W6-Aは取り消さず、revised Review UXへ統合して継続する。W3/W5を作り直さない。必要に応じて少数の独立した実教材で初期Filterの弱点も確認するが、未提供データを持っている前提では進めない。
 
 Anchor/queue identity/lineage判定のpure部分、Corpus/Transition/Contrastはcheap tests中心。host/UIに変更があるW1-R/W4-M checkpointだけ製品nativeを実行する。hostの未知事実だけLabへ戻し、既存のArchive実験を変更しない。private素材/Corpusやhost binaryをrepoへcommitしない。
