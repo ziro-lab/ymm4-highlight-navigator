@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using Ymm4HighlightNavigator.Core;
 using Ymm4HighlightNavigator.Plugin;
 using YukkuriMovieMaker.Project;
@@ -147,9 +148,12 @@ internal static class UxNativeProof
         Capture(learningView, output, "ux-authoring", 400, 640, ["LearningResults", "SaveFilterButton"]);
         var inputs = (FrameworkElement)learningView.FindName("ClassificationInputs");
         await learning.RefreshLabelsAsync(); learning.SelectedLabel = learning.KnownLabels.Single(l => l.Label == label); await learning.RefreshAvailabilityAsync();
-        learningView.UpdateLayout(); bool hidden = inputs.Visibility == Visibility.Collapsed;
-        learning.NewClassificationCommand.Execute(null); learningView.UpdateLayout();
-        check("ux_classification_progressive_disclosure", hidden && inputs.Visibility == Visibility.Visible);
+        await learningView.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
+        learningView.UpdateLayout(); bool hidden = !learning.IsNewClassification && inputs.Visibility == Visibility.Collapsed;
+        learning.NewClassificationCommand.Execute(null);
+        await learningView.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
+        learningView.UpdateLayout();
+        check("ux_classification_progressive_disclosure", hidden && learning.IsNewClassification && inputs.Visibility == Visibility.Visible);
         learning.DiscardDraftCommand.Execute(null);
         check("ux_explicit_discard_only_clears_draft", learning.Draft == null && new FilterStore(isolated).Read(label) is { Revision: 1 } && isolated.Read().Samples.Length == original.Read().Samples.Length);
     }

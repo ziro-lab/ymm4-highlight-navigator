@@ -203,7 +203,11 @@ public sealed class LearningModel : NotifyModel, IDisposable
             var labels = await Task.Run(() => corpus.Read().Samples.SelectMany(s => s.Labels).Distinct().OrderBy(l => l.Group).ThenBy(l => l.Name).ToArray());
             if (disposed) return;
             KnownLabels.Clear(); foreach (var label in labels) KnownLabels.Add(new(label));
-            if (TryLabel(out var current)) { selectedLabel = KnownLabels.FirstOrDefault(l => l.Label == current); Changed(nameof(SelectedLabel)); }
+            selectedLabel = TryLabel(out var current) ? KnownLabels.FirstOrDefault(l => l.Label == current) : null;
+            Changed(nameof(SelectedLabel));
+            // A refreshed selection can equal the previous value and bypass its setter.
+            // Keep disclosure consistent without changing the entered label or retained draft.
+            IsNewClassification = selectedLabel == null;
         }
         catch (Exception ex) { if (!disposed) Status = ex.Message; }
         await RefreshAvailabilityAsync();
