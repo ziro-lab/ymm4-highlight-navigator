@@ -16,13 +16,184 @@ Do not let a growing filter catalog dictate the UI by accident. First establish 
 
 The goal is not to finish visual polish before feature work. The first pass is **information architecture + workflow**, with visual polish following only where needed.
 
+## Implementation boundary — NOW vs LATER
+
+This plan intentionally separates **the UI/UX foundation to implement in the next pass** from improvements that should stay visible but wait until real hands-on use justifies them.
+
+### NOW — implement in the next UI/UX pass
+
+These items affect the mental model, persistence contract, work preservation, or the high-frequency review loop. Changing them later would be expensive.
+
+#### A. Review information architecture
+
+Keep the everyday task order explicit:
+
+```text
+対象動画
+→ 確認セット / Filter
+→ 解析
+→ 候補Review
+→ 必要なら見どころ確保
+```
+
+- Preserve explicit target capture. YMM4 selection changes must not silently change the review target.
+- The internal concept remains `Set`, but the user-facing label should be **確認セット**.
+- A Set is important, but is not the top-level task. The target comes first.
+- Keep Main Review focused on target, active review settings, candidate navigation, and current status.
+
+#### B. Filter / Group / Set semantics and persistence
+
+Freeze the meaning of the three concepts now:
+
+- Filter = detector/query.
+- Group = organization only.
+- Set = reusable review configuration referencing Filters.
+
+Implement the minimum Set lifecycle now:
+
+- stable Filter IDs; rename/group move must not break Sets;
+- built-in Set vs user Set distinction;
+- deleted/disabled Filter references degrade visibly instead of silently changing meaning;
+- save current review configuration as a Set;
+- duplicate a Set cheaply;
+- applying/editing a Set must not silently overwrite the saved Set.
+
+Do not add a fourth "genre preset" model. Genre presets are built-in Sets.
+
+#### C. Work preservation / prevention
+
+Do not discard a valid user-created state merely because the next operation failed or was cancelled.
+
+For Filter authoring:
+
+- keep the current valid Draft until a replacement Draft succeeds;
+- Cancel keeps the previous valid Draft;
+- transient Error keeps the previous valid Draft;
+- Save failure keeps the Draft so the user can retry;
+- only a successful replacement or explicit discard clears it.
+
+For review Sets:
+
+- distinguish **saved Set** from **current working review state**;
+- changing Filter ON/OFF or Sensitivity does not silently mutate the saved Set;
+- switching/applying another Set must not silently destroy the previous working state. The exact lightweight restore UI may be implemented as part of the hands-on pass, but the preservation rule is fixed now.
+
+#### D. Main Review essentials
+
+Implement/retain:
+
+- explicit target capture + target summary;
+- 確認セット selector;
+- enabled Filter chips / quick ON-OFF;
+- add Filter entry;
+- Global Sensitivity;
+- candidate count / raw hit count;
+- Prev / Next / List / Jump;
+- candidate attribution/reason;
+- Progress / Cancel / Status;
+- W4-M Highlight Memo controls when W4-M is integrated.
+
+Do not expose low-level Pattern weights, primitive feature names, or many per-Filter thresholds.
+
+#### E. Authoring simplification
+
+Keep authoring separate from Main Review and reduce simultaneous decisions.
+
+Preferred first-use flow:
+
+```text
+教材を選ぶ
+→ 既存分類を選ぶ / 新規作成
+→ 取り込む
+→ Filter候補を作る
+→ 長尺で試す
+→ 保存
+```
+
+- Preserve folder-name inference for Group / Filter name.
+- Show Group / Filter name entry prominently only when creating a new classification or editing it.
+- Keep Preview/試用 separate from Save/適用.
+- Disable rollback when no rollback target exists rather than letting a predictable command fail.
+
+#### F. High-frequency review shortcuts
+
+Provide a keyboard path for the repeated review loop, at minimum:
+
+- previous candidate;
+- next candidate;
+- jump to selected candidate.
+
+When Highlight Memo and Explicit Negative are integrated, add shortcut-ready command paths for those operations too.
+
+Exact key assignments and user-configurable remapping can wait; the commands should not require mouse-only operation.
+
+#### G. Minimal Generic Filter pressure test
+
+After the above UI skeleton works with existing Filters, add only:
+
+1. 大きな場面切替
+2. 暗転 / フェード
+3. 静穏 → 高活動
+
+Use them to pressure-test multi-Filter state, attribution, Set switching, candidate density and management.
+
+### LATER — keep planned, do not implement in this UI/UX pass
+
+These are useful, but do not need to block the first interaction-model freeze.
+
+#### Management refinements
+
+- favorites;
+- hidden Filters / Groups;
+- recently used;
+- "used by these Sets";
+- richer sort/filter views;
+- import/export of Sets/Filters if distribution later needs it.
+
+#### Candidate-list richness
+
+- Before / Hit / After thumbnails;
+- richer visual confidence/explanation;
+- density visualization beyond the existing counts;
+- per-candidate preview polish.
+
+Start with time + attribution/reason and validate whether richer preview materially speeds review.
+
+#### Shortcut refinements
+
+- user-configurable key bindings;
+- shortcut profiles;
+- discoverability overlays / cheat sheet.
+
+#### Visual polish
+
+- final spacing, iconography, animation, color semantics and compact-density tuning beyond what is needed for the hands-on test.
+
+Do not freeze decorative polish before the information architecture survives real use.
+
+#### Additional Filter families
+
+After the interaction model is frozen:
+
+- remaining cheap Generic Filters;
+- Audio Generic Filters;
+- Reference Image / State search;
+- only then reconsider OCR, embeddings or other heavier detectors if real recordings justify them.
+
+### Scope rule
+
+If a change alters **what Filter/Group/Set means, how saved work survives, or the high-frequency review path**, it belongs in NOW.
+
+If it mainly improves **catalog convenience, presentation richness, customization, or adds a new signal family**, it belongs in LATER unless hands-on use proves it blocks the core workflow.
+
+
 ## Core concepts
 
 Keep three roles distinct:
 
 - **Filter** — detector/query that produces candidate hits.
 - **Group** — organizational category only; moving/renaming a Group must not change detection semantics.
-- **Set** — reusable runtime combination of enabled Filters plus user-facing review settings such as Global Sensitivity.
+- **Set** — reusable runtime combination of enabled Filters plus user-facing review settings such as Global Sensitivity. Internal name is `Set`; user-facing UI label is **確認セット**.
 
 Short rule:
 
@@ -56,7 +227,8 @@ Keep the main review surface small.
 
 Primary content:
 
-- active Set selector
+- explicit target capture / target summary
+- active 確認セット selector
 - enabled Filter chips / quick ON-OFF
 - Global Sensitivity
 - candidate count / raw hit count
@@ -67,7 +239,9 @@ Primary content:
 Conceptual layout:
 
 ```text
-セット [ X4録画チェック ▼ ]     [セット保存]
+対象 [ 選択動画を対象に ]  recording_01.mp4 / 1個
+
+確認セット [ X4録画チェック ▼ ]   [現在の確認設定を保存]
 
 有効なフィルター
 [戦闘開始 ×] [暗転 ×] [高活動→静穏 ×] [+追加]
@@ -268,7 +442,9 @@ Do not make the UI/UX pass an excuse to add:
 
 ## Preferred execution sequence
 
-### UX-1 — information architecture
+The NOW/LATER boundary above is authoritative for scope.
+
+### UX-1 — information architecture + preservation contract
 
 Freeze the user meaning of Filter / Group / Set and the responsibilities of:
 
@@ -276,7 +452,11 @@ Freeze the user meaning of Filter / Group / Set and the responsibilities of:
 - Filter Authoring
 - Filter Management
 
-Define Set persistence and broken-reference behavior before polishing the visuals.
+Define Set persistence, broken-reference behavior, and the Draft/working-state preservation contract before polishing the visuals. Keep the user task order as target → review settings → analysis → review.
+
+### UX-1.5 — prevention / work-preservation implementation
+
+Fix predictable work-loss paths before broad UI polish: preserve a valid Draft across cancel/error/save failure, separate saved Set from working state, and make unavailable rollback/actions disabled rather than failure-driven.
 
 ### UX-2 — existing-feature hands-on
 
@@ -285,13 +465,18 @@ Implement/prototype the new flow using existing filters first.
 Acceptance path:
 
 ```text
-Set選択
+対象固定
+→ 確認セット選択
 → Filter追加/削除
 → Sensitivity変更
 → 候補理由確認
 → Prev/Next/List
-→ Set保存/再選択
+→ 現在の確認設定を保存/再選択
 ```
+
+### UX-2.5 — high-frequency review path
+
+Verify keyboard-accessible Prev / Next / Jump and that repeated candidate review does not require mouse-only round trips.
 
 ### UX-3 — minimal Generic Filter Pack
 
