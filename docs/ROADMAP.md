@@ -10,7 +10,7 @@ Authority: [DESIGN.md](DESIGN.md) §14。検証済みのsource/run、境界は [
 - W3-A非破壊batch取込、W3-B元動画なしでの再利用、W3-C局所Transition抽出を実装。
 - W5の初期Filter生成、複数Pattern OR、教材再判定、試用/保存、Runtime/感度接続まで実装。
 - W6は最小のApply/revision/Positive回帰/rollbackが先行実装済み。Explicit NegativeとContrast/densityはまだOPEN。
-- 2026-09-19のLabでSplit/Trim/Move/Duplicate/UndoRedoとmemo Scene shelfのhost挙動を確定。W1-Rの実装・検証は [W1_R_CHECKPOINT.md](W1_R_CHECKPOINT.md) を参照。**次はW4-M memo capture、W6はその後**。今回W4-M/W6へは進まない。
+- 2026-09-19のLabでSplit/Trim/Move/Duplicate/UndoRedoとmemo Scene shelfのhost挙動を確定。W1-Rの実装・検証は [W1_R_CHECKPOINT.md](W1_R_CHECKPOINT.md) を参照。**次はUI/UX foundation（情報設計 + 作業保全）を先に実装し、最小Generic Filter Packでpressure-testする**。W4-M/W6は取り消さず、revised Review UXへ統合して続ける。
 - W7実素材精度・長尺性能・GPU・配布・ユーザー受入はOPEN。
 
 最新の正確なsource/run別証拠は [W1_R_CHECKPOINT.md](W1_R_CHECKPOINT.md)。Baseline27、Learning35×2条件とW1-R専用Pure/製品nativeを区別する。教材候補一致を実X4のRecall合格へ拡大しない。
@@ -159,12 +159,15 @@ Before expanding the generic filter catalog, perform the UI/UX structure pass re
 
 Preferred sequence:
 
-1. define/freeze the user meaning of **Filter / Group / Set** and split Main Review / Authoring / Management responsibilities;
-2. validate that flow with existing capabilities;
-3. add only a **2–3 filter minimal Generic Filter Pack**;
-4. pressure-test the UI with multiple active filters and attribution;
-5. freeze the interaction model;
-6. then expand Generic Filters, followed later by Audio and Reference Image/State search only as justified.
+1. define/freeze **Filter / Group / Set** semantics, with user-facing **確認セット**, and keep the task order target → review settings → analysis → review;
+2. implement work-preservation/prevention rules for authoring Drafts and review working state;
+3. validate the revised flow with existing capabilities, including keyboard-accessible high-frequency navigation;
+4. add only a **2–3 filter minimal Generic Filter Pack**;
+5. pressure-test the UI with multiple active filters and attribution;
+6. freeze the interaction model;
+7. only then expand Generic Filters and later Audio / Reference Image-State search.
+
+The exact NOW/LATER implementation boundary is recorded in [UI_UX_GENERIC_FILTER_PLAN.md](UI_UX_GENERIC_FILTER_PLAN.md); favorites, rich thumbnails, configurable shortcuts and visual polish are explicitly deferred unless hands-on testing proves they block the core workflow.
 
 This is a sequencing change, not a cancellation of W4-M/W6. Highlight Memo and Explicit Negative remain planned capabilities and should be surfaced through the revised review UX rather than driving a separate UI structure.
 
