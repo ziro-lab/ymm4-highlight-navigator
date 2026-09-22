@@ -4,16 +4,17 @@ Authority: [DESIGN.md](DESIGN.md) §14。検証済みのsource/run、境界は [
 
 ## Current state
 
-**W1-R EDIT-TIME REBINDING CHECKPOINT / NOT A COMPLETE RELEASE**
+**UI/UX FOUNDATION CANDIDATE — PR #9 / NOT UX-ACCEPTED OR RELEASED**
 
+- PR #9のUI/UX foundationを実装。exact source `42263615642dc94907fbefc7471fc3015a1512ce` / run `35675127362` でpureと製品native105 PASS。詳細は [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)。main未merge、物理操作Hands-on/interaction freezeは未完了。
 - W1/W2/W4の既存基盤を維持。
 - W3-A非破壊batch取込、W3-B元動画なしでの再利用、W3-C局所Transition抽出を実装。
 - W5の初期Filter生成、複数Pattern OR、教材再判定、試用/保存、Runtime/感度接続まで実装。
 - W6は最小のApply/revision/Positive回帰/rollbackが先行実装済み。Explicit NegativeとContrast/densityはまだOPEN。
-- 2026-09-19のLabでSplit/Trim/Move/Duplicate/UndoRedoとmemo Scene shelfのhost挙動を確定。W1-Rの実装・検証は [W1_R_CHECKPOINT.md](W1_R_CHECKPOINT.md) を参照。**次はUI/UX foundation（情報設計 + 作業保全）を先に実装し、最小Generic Filter Packでpressure-testする**。W4-M/W6は取り消さず、revised Review UXへ統合して続ける。
+- 2026-09-19のLabでSplit/Trim/Move/Duplicate/UndoRedoとmemo Scene shelfのhost挙動を確定。W1-Rの実装・検証は [W1_R_CHECKPOINT.md](W1_R_CHECKPOINT.md) を参照。**次は実装したUI/UX foundationを既存FilterでHands-onし、その後に最小Generic Filter Packでpressure-testする**。W4-M/W6は取り消さず、revised Review UXへ統合して続ける。
 - W7実素材精度・長尺性能・GPU・配布・ユーザー受入はOPEN。
 
-最新の正確なsource/run別証拠は [W1_R_CHECKPOINT.md](W1_R_CHECKPOINT.md)。Baseline27、Learning35×2条件とW1-R専用Pure/製品nativeを区別する。教材候補一致を実X4のRecall合格へ拡大しない。
+最新の正確なsource/run別証拠は [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)。元のW1-R専用証拠は [W1_R_CHECKPOINT.md](W1_R_CHECKPOINT.md)。Baseline27、Learning35×2条件と専用Pure/製品nativeを区別する。教材候補一致を実X4のRecall合格へ拡大しない。
 
 ## Fixed product direction
 
@@ -42,7 +43,7 @@ Labで確定したhost facts:
 - Splitは元VideoItemを左右の新objectへ置換する。
 - head/tail Trimはsame objectを変更する。
 - Moveはsame objectのFrameだけを変えsource rangeを維持する。
-- Undo/Redoはsemantic stateと過去referenceを再導入し得る。
+- Undo/Redoはsemantic stateが戻り、observed cycleでは過去referenceも再導入し得る。
 - Copy/Pasteは同じFilePath + source rangeの別occurrenceを作れる。
 
 実装済みの方針:
@@ -89,9 +90,9 @@ stream-copy素材の映像/音声末尾の差に対応し、実際の映像domai
 
 汎用条件と学習Filterを同じ候補投影へ流す。per-filter hit、OR/Union、attribution、別Item occurrence、capture時Target順 + AnchorSourceTime順のPrev/Next/Listを維持する。
 
-学習Filterの試用はsessionだけ。保存版は次回ロードで使える。Global Sensitivityは常時見える位置に置き、同じTransitionIndexを再検索する。Review Presetの永続化と広いlifecycleは残る。
+学習Filterの試用はsessionだけ。保存版は次回ロードで使える。Global Sensitivityは常時見える位置に置き、同じTransitionIndexを再検索する。Review Presetに相当する確認セットの明示保存・複製・上書き・1段復元はPR #9で実装。未保存working state/Draftの再起動復元や広いlifecycleは残る。
 
-## W4-M — Highlight memo capture — next / not implemented in W1-R
+## W4-M — Highlight memo capture — planned after UI foundation / not implemented
 
 目的は、使えそうなCandidateを本編Timelineから手作業で切る代わりに、開始地点だけをreference Clipとして別Sceneへ確保すること。
 
@@ -173,6 +174,6 @@ This is a sequencing change, not a cancellation of W4-M/W6. Highlight Memo and E
 
 ## Next execution and budget
 
-W1-R checkpoint後の次着手は、まず [UI_UX_GENERIC_FILTER_PLAN.md](UI_UX_GENERIC_FILTER_PLAN.md) の **UX-1 → UX-2**。その後、最小Generic Filter PackでUXをpressure-testしてinteraction modelをfreezeする。W4-M / W6-Aは取り消さず、revised Review UXへ統合して継続する。W3/W5を作り直さない。必要に応じて少数の独立した実教材で初期Filterの弱点も確認するが、未提供データを持っている前提では進めない。
+次着手は [IMPLEMENTATION_KICKOFF.md](IMPLEMENTATION_KICKOFF.md) の **PR #9のUX-2/UX-2.5 Hands-on**。UX-1/UX-1.5の保存・保全基盤とUIの製品統合は検証済みだが、UX受入とは区別する。その後、最小Generic Filter PackでUXをpressure-testしてinteraction modelをfreezeする。W4-M / W6-Aは取り消さず、revised Review UXへ統合して継続する。W3/W5を作り直さない。必要に応じて少数の独立した実教材で初期Filterの弱点も確認するが、未提供データを持っている前提では進めない。
 
-Anchor/queue identity/lineage判定のpure部分、Corpus/Transition/Contrastはcheap tests中心。host/UIに変更があるW1-R/W4-M checkpointだけ製品nativeを実行する。hostの未知事実だけLabへ戻し、既存のArchive実験を変更しない。private素材/Corpusやhost binaryをrepoへcommitしない。
+Anchor/queue identity/lineage判定のpure部分、Corpus/Transition/Contrastはcheap tests中心。host/UIに変更がある製品checkpointでのみnativeを実行する。hostの未知事実だけLabへ戻し、既存のArchive実験を変更しない。private素材/Corpusやhost binaryをrepoへcommitしない。

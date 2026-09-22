@@ -1,8 +1,68 @@
-# Implementation checkpoint — v0.4.2 W1-R edit-time rebinding
+# Implementation checkpoint — v0.4.2 UI/UX foundation candidate
 
 設計正本は **DESIGN v0.4.2**。この文書は実装・検証済みの範囲を記録する。初期学習経路が動いたことと、全機能完成・一般配布・実ゲーム品質は別のClaim。
 
-## W1-R checkpoint
+## UI/UX foundation checkpoint — 2026-09-22 / PR #9
+
+**基盤の製品統合はPASS。ユーザー操作受入・interaction freeze・通常配布はまだOPEN。**
+
+- Branch: `feature/v0.4.2-ux-foundation`; [Draft PR #9](https://github.com/ziro-lab/ymm4-highlight-navigator/pull/9)。mainへ未merge。
+- Base main: `dc2de6e2d037c895d2b16f0dd0b45e8c0e59ea0f`。
+- Exact tested source: `42263615642dc94907fbefc7471fc3015a1512ce`。後続docs-only HEADをtested sourceへ読み替えない。
+- [Native + pure preflight run 35675127362](https://github.com/ziro-lab/ymm4-highlight-navigator/actions/runs/35675127362): 両job PASS。
+- Pure job `106579915032`: Core **27 cases**、Rebinding **29 cases**、Review settings **27 cases**、Learning **35 cases × 2素材条件**、すべて0 failures。35×2は70種類の独立機能ではない。
+- Product-native job `106580152574`: 実YMM4 Lite **4.56.1.0** / .NET 10、**105独立IDすべてPASS（既存69 + UX36）**。製品DLLとproof assemblyはwarnings-as-errorsで0 warnings / 0 errors。
+- Runnerの独立gateで結果ID/checkout、実際にloadした製品DLL、host同梱FFmpeg/ffprobe、YMM4生存を照合。
+
+### Implemented in this slice
+
+対象固定 → 確認セット → 有効Filter → 感度 → 候補巡回というMain Reviewを実装した。セットの保存操作は折り畳み、Filter選択・検索・Group折り畳み・表示名編集は別surfaceに分離。候補理由、候補数/ヒット計、Progress/Cancel、既存のsource-time移動を維持する。
+
+確認セットはFilter ID参照とON/OFF・Global Sensitivityだけを持つ。保存済みセットとworking stateは別で、新規保存（複製用途も含む）・明示上書き・切替前への1段復元を実装。標準セットは上書き不可。未解決参照は消さず警告し、保存先の破損/競合/失敗を空データとして上書きしない。
+
+新しい確認設定の保存先は `%LOCALAPPDATA%\Ymm4HighlightNavigator\Review\review-settings.json`。独立したrevision/writer lockを持ち、既存のchecksummed JSON publication primitiveを再利用する。FilterStoreやCorpusの正本は複製しない。
+
+名前変更・Group変更は**表示名と整理用Groupのalias**としてFilter IDへ保存する。教材分類や既存Filterの保存keyを移動する処理ではない。セット参照と検出内容は変わらない。完全な教材分類のrename/migrationや学習Filter自体の複製・削除はこのsliceの完了範囲外。
+
+学習Draftは再生成の中止/失敗、保存失敗、分類変更、作成Windowを閉じる操作で失わない。新しい生成結果の成功、保存成功、明示破棄を区別する。別分類/古いCorpus revision/古い保存版のDraftは保持しつつ試用・保存を止め、分類復帰または再生成へ案内する。保存後のUI反映失敗は、保存そのものの失敗とは区別する。rollbackは実際に前の保存版がある場合だけ有効。
+
+試用Filterを通常の再読込で勝手に解除しない。明示的な「試用を終了」で保存版へ戻す。未保存の試用Filterがある間は、永続セットに不安定な参照を保存させない。
+
+候補一覧にローカルな `Alt+↑ / Alt+↓ / Enter` のPrevious / Next / Jumpを接続した。グローバルキーフックや新規のYMM4-private依存は追加していない。
+
+### Evidence chain
+
+| Evidence | Artifact ID | ZIP SHA256 |
+|---|---|---|
+| navigator-core-evidence | `10672732745` | `1a8dd0862f7c7256598edde4f58a876df291774d49746a919545373d8e062fa3` |
+| navigator-native-checkpoint | `10672638018` | `3e1ae9f48746ef66557a34c60a179338500ed690a0e21c5b6bed38034adb63c4` |
+
+Downloaded ZIP hashes, result JSONs and the required-ID manifest were independently checked.
+
+- Retained `tested-source.zip` SHA256: `e52ab5413bb4a7a486c7728183a658a8b8fd232eba092246597d5ed6d86a004f`。
+- Product DLL SHA256: `ab9b26ad835a5393c50e30bf5f4c640f84603ee740a51f8b86a8ee604063be2d`。
+- Core DLL SHA256: `027ce7821e1a163d78b83f1c75342c7d348c0e26c41df21228a8be20dfbe39d2`。
+- 配布用DLLは上記2個のみ。proof DLL・YMM4本体・FFmpegの独自同梱なし。
+- `ux-summary.json`: backend call **1 → 1**、設定変更/試用終了で追加Decodeなし。元VideoItem状態も維持。
+- W1-R regressionは自身のfixture解析1回のみ増え、以後のSplit/Trim/Move/Copy/UndoRedoでは追加Decodeなし。正常系失敗のunhandled例外0。
+
+### UI / acceptance boundary
+
+実コンパイルViewのPNG6枚を取得し目視確認した。新Main Review 360×480、Filter管理360×480、学習400×640/640×640等のcontrol renderingで文字の重なりや主要操作の領域外逸脱がないことを確認。分類の既存/新規切替も実bindingで確認した。
+
+ただし**物理キーボード入力、YMM4とのfocus競合、全DPI/theme、長いFilter名・大量Filter・3時間録画、通常 `.ymme` install/upgrade、ユーザー受入は未証明**。KeyBindingの接続とそのCommandによるhost移動の検証は、実キー入力の検証と別。
+
+Draftと未保存のworking stateの保持は、同じNavigatorセッション内が対象。明示保存したセットはディスクへ残るが、YMM4終了・クラッシュを跨ぐDraft自動復元は未実装。セット切替の復元は1段のみ。設定保存の失敗/競合、生成中止、古いDraft拒否をテストしたことを、あらゆる電源断・外部改変に対する無損失保証へ拡大しない。
+
+Generic Filter Pack、Audio/Image検索、W4-M、W6、学習Filter複製/完全削除、お気に入り、key remap、rich thumbnailは今回追加していない。新規汎用Filterは増やさず、既存3 seed Filterと既存学習Filterで基盤を通した。次は既存機能でHands-onし、妨げる点を修正した後、最小Generic Packへ進む。interaction freezeはその後。
+
+### Failure retained, not relabeled
+
+初回UI統合source `d402b6bed3709aa2fa3f6994e90209397561da24` / run `35674574951` は、pure/build PASS後に `ux_classification_progressive_disclosure` でFAIL。分類一覧refreshが直接selectedLabelを更新し、同じ値のsetterを通らないため新規入力欄の表示状態が追随しなかった。
+
+製品側で一覧refresh時の表示状態を同期し、入力とDraftは保持。テストはmodel状態と実Visibilityの両方を、dispatcherのbinding処理後に確認する形へ強化した。必須IDを削除せず、source `4226361` の上記runで105項目を再実行してPASS。
+
+## W1-R checkpoint — retained baseline
 
 W1-Rのcurrent tested source、run/job/artifact/hash、実装境界は [W1_R_CHECKPOINT.md](W1_R_CHECKPOINT.md) に記録する。後続docs commit/main mergeのSHAをtested sourceへ読み替えない。
 
@@ -12,6 +72,7 @@ W1-Rのcurrent tested source、run/job/artifact/hash、実装境界は [W1_R_CHE
 
 | 領域 | 実装と検証の範囲 |
 |---|---|
+| UI/UX foundation | 確認セット/作業保全/3 surface/local keyboard pathを実装。上記native105 PASS、Hands-on未受入 |
 | W1-R | Source anchor、安定順、known-lineage優先、一意partition再bind、個別Unavailable、current-map Jumpを実装。検証結果は上記checkpoint参照 |
 | W1 / W2 / W4 | 既存Target/Projection、CPU特徴、Pack、複数フィルターReviewを維持 |
 | W3-A | 普通の動画/直下フォルダーの非破壊batch取込、重複検出、Positive membership、登録transactionを実装 |
@@ -134,13 +195,13 @@ Lab timing `0b69aed70a3f8a84cc2ede539d794cb4e8108677`、navigation-context sourc
 
 ## Remaining work / resume
 
-W1-Rの範囲を完了・検証した後の次工程は [IMPLEMENTATION_KICKOFF.md](IMPLEMENTATION_KICKOFF.md) の **W4-M → W6-A**。今回は進めない。W3/W5をゼロから作り直さない。
+現在の再開点は [IMPLEMENTATION_KICKOFF.md](IMPLEMENTATION_KICKOFF.md) の **PR #9で既存機能Hands-on → 必要な修正 → 最小Generic Filter Pack → 再評価**。UI/UXのinteraction freeze前であり、W4-M/W6は後続のまま。W3/W5や今回の保存基盤を再実装しない。
 
 - **W1-Rの残る境界:** 一意partitionを観測できない複合編集・曖昧replacementはfail closed。source length/write stampは維持し、全ファイルの再hashを各Nextへ追加しない。
 - **W4-M:** `見どころを確保`。memo SceneへFrame0 / separate Layerでreference Clip追加、default30秒/設定可、Remark attribution。
 - その後 **W6-A:** Runtimeの `これは違う` → filter-specific Explicit Negative →保存済み特徴によるContrast改善。
 - 誤検出低減と既存Positive保護、独立素材のcandidate density/query cost評価。clip-level一致と期待Transition地点を区別した評価。
-- 既に全教材を拾える場合の変更なし候補扱い、細かい学習UX/Review Preset、Profile増加時の性能改善。
+- 既に全教材を拾える場合の変更なし候補扱い、細かい学習UX/確認セットのHands-on、Profile増加時の性能改善。
 - W4-Mのproduct-native integration、broader reload/scene/cancel race、実codec/VFR/特殊timestamp、memory/ingest/query/GPU、通常 `.ymme` install/upgradeとhands-on acceptance。
 - 消費型Inboxの明示所有権・削除transactionは未実装。現在の非破壊Importとは分けて実装・検証する。
 
