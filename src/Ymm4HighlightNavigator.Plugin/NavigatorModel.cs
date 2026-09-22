@@ -34,7 +34,15 @@ public sealed class ProfileChoice(SceneProfile profile) : NotifyModel
         => Learned = learned;
     private bool enabled = true;
     private string count = "";
-    public string Name => Profile.Name;
+    private ReviewFilterPresentation? presentation;
+    public string Group => presentation?.Group ?? Learned?.Label.Group ?? "汎用";
+    public string ShortName => presentation?.Name ?? Learned?.Label.Name ?? Profile.Name;
+    public string Name => Group + " / " + ShortName + (Learned is { Revision: 0 } ? "（試用）" : "");
+    public ICommand RemoveCommand => new RelayCommand(() => Enabled = false, () => Enabled);
+    public void ApplyPresentation(ReviewFilterPresentation? value)
+    {
+        presentation = value; Changed(nameof(Group)); Changed(nameof(ShortName)); Changed(nameof(Name));
+    }
     public bool Enabled { get => enabled; set { if (enabled == value) return; enabled = value; Changed(); } }
     public string Count { get => count; internal set { count = value; Changed(); } }
 }
@@ -106,12 +114,12 @@ public sealed partial class NavigatorModel : NotifyModel, ITimelineToolViewModel
     public int AnalysisBackendCallCount => Volatile.Read(ref backendCallCount);
     public bool IsBusy { get => busy; private set { busy = value; Changed(); Changed(nameof(CanConfigure)); Commands(); } }
     public bool IsQuerying { get => querying; private set { querying = value; Changed(); Changed(nameof(CandidateSummary)); Commands(); } }
-    public bool CanConfigure => !IsBusy;
+    public bool CanConfigure => !IsBusy && !IsReviewSettingsBusy;
     public double Progress { get => progress; private set { progress = Math.Clamp(value, 0, 1); Changed(); } }
     public string Status { get => status; private set { status = value; Changed(); } }
-    public string TargetSummary => $"対象 {Targets.Length}個";
+    public string TargetSummary => Targets.IsEmpty ? "対象なし" : $"対象 {Targets.Length}個: " + string.Join(" / ", Targets.Select(t => Path.GetFileName(t.SourceKey)).Distinct().Take(2));
     public string CandidateSummary => IsQuerying ? "候補を更新中…" : hasQueryResult ? $"候補 {Candidates.Count}件 / ヒット計 {hitTotal}" : "候補は未計算です";
-    public double Sensitivity { get => sensitivity; set { if (!double.IsFinite(value) || value < .25 || value > 2 || value == sensitivity) return; sensitivity = value; Changed(); _ = RequeryAsync(); } }
+    public double Sensitivity { get => sensitivity; set { if (!double.IsFinite(value) || value < .25 || value > 2 || value == sensitivity) return; sensitivity = value; Changed(); ReviewChoicesChanged(); } }
     public Candidate? Selected { get => selected; set { selected = value; Changed(); Commands(); } }
     public ICommand CaptureCommand { get; }
     public ICommand AnalyzeCommand { get; }
@@ -132,8 +140,9 @@ public sealed partial class NavigatorModel : NotifyModel, ITimelineToolViewModel
         PreviousCommand = new RelayCommand(() => Safe(() => Move(-1)), () => !disposed && !IsBusy && !IsQuerying && Candidates.Count > 0);
         NextCommand = new RelayCommand(() => Safe(() => Move(1)), () => !disposed && !IsBusy && !IsQuerying && Candidates.Count > 0);
         JumpCommand = new RelayCommand(() => Safe(JumpSelected), () => !disposed && !IsBusy && !IsQuerying && Selected != null);
+        InitializeReviewSettings();
     }
-    private void ProfileChanged(object? sender, PropertyChangedEventArgs e) { if (e.PropertyName == nameof(ProfileChoice.Enabled)) _ = RequeryAsync(); }
+    private void ProfileChanged(object? sender, PropertyChangedEventArgs e) { if (e.PropertyName == nameof(ProfileChoice.Enabled)) ReviewChoicesChanged(); }
     private static void Commands() => CommandManager.InvalidateRequerySuggested();
     private void Safe(Action action) { try { action(); } catch (Exception ex) { Status = ex.Message; } }
 
@@ -207,7 +216,7 @@ public sealed partial class NavigatorModel : NotifyModel, ITimelineToolViewModel
         queryCancel?.Cancel(); queryCancel?.Dispose(); queryCancel = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken); var token = queryCancel.Token;
         int stamp = generation, q = ++queryGeneration;
         var sources = analyzed.ToArray(); var sessions = adapter.Sessions;
-        var profiles = Profiles.Select(p => (p.Profile, p.Learned, p.Enabled)).ToArray(); double sens = Sensitivity;
+        var profiles = Profiles.Select(p => (p.Profile, p.Learned, p.Enabled, p.Name)).ToArray(); double sens = Sensitivity;
         IsQuerying = true;
         try
         {
@@ -245,7 +254,7 @@ public sealed partial class NavigatorModel : NotifyModel, ITimelineToolViewModel
             var next = new List<Candidate>();
             foreach (var row in result.output)
             {
-                var names = row.Episode.ProfileIds.Select(id => profiles.Single(p => p.Profile.Id == id).Profile.Name).ToImmutableArray();
+                var names = row.Episode.ProfileIds.Select(id => profiles.Single(p => p.Profile.Id == id).Name).ToImmutableArray();
                 var candidate = new Candidate(row.Session, row.Episode, names, Path.GetFileName(row.Session.SourceKey));
                 candidate.SetProjection(adapter.ProjectCurrent(candidate.TargetId, candidate.AnchorSourceTime));
                 candidate.Visited = visited.Contains(candidate.Identity);
@@ -309,7 +318,7 @@ public sealed partial class NavigatorModel : NotifyModel, ITimelineToolViewModel
     public void Dispose()
     {
         if (disposed) return;
-        disposed = true; generation++; Cancel(); CloseLearningSurface();
+        disposed = true; generation++; Cancel(); CloseLearningSurface(); CloseReviewSettingsSurface();
         foreach (var p in Profiles) p.PropertyChanged -= ProfileChanged;
         analyzed.Clear(); visited.Clear(); Candidates.Clear(); adapter.Attach(null);
     }

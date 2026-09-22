@@ -39,7 +39,7 @@ try {
  $r=Get-Content -Raw $result | ConvertFrom-Json
  if($r.schema -ne 'navigator.native.v1' -or $r.passed -cne $true -or $r.checkout -ne $env:GITHUB_SHA -or $r.error){throw 'Native result identity/status rejected.'}
  $required=@(Get-Content (Join-Path $PSScriptRoot 'required-native-cases.json') -Raw | ConvertFrom-Json)
- if($required.Count -ne 69 -or @($required | Select-Object -Unique).Count -ne 69){throw 'Invalid independent native requirements.'}
+ if($required.Count -ne 105 -or @($required | Select-Object -Unique).Count -ne 105){throw 'Invalid independent native requirements.'}
  if($r.assertions.Count -ne $required.Count){throw 'Wrong native assertion count.'}
  foreach($id in $required){$found=@($r.assertions|Where-Object id -eq $id); if($found.Count -ne 1 -or $found[0].passed -cne $true){throw "Missing/failed assertion: $id"}}
  $p.Refresh()
@@ -49,8 +49,11 @@ try {
  $edit=Get-Content (Join-Path $OutputDir 'rebinding-summary.json') -Raw | ConvertFrom-Json
  if($edit.schema -ne 'navigator.rebinding-native.v1' -or $edit.checkout -ne $env:GITHUB_SHA -or $edit.completed -cne $true -or $edit.callsAfter -ne $edit.decodeCount -or $edit.decodeCount -ne ($edit.callsBefore + 1) -or $edit.unhandled -ne 0){throw 'Rebinding evidence rejected.'}
  Get-Content (Join-Path $OutputDir 'rebinding-summary.json')
+ $ux=Get-Content (Join-Path $OutputDir 'ux-summary.json') -Raw | ConvertFrom-Json
+ if($ux.schema -ne 'navigator.ux-native.v1' -or $ux.checkout -ne $env:GITHUB_SHA -or $ux.completed -cne $true -or $ux.callsAfter -ne $ux.callsBefore){throw 'UX integration evidence rejected.'}
+ Get-Content (Join-Path $OutputDir 'ux-summary.json')
  Get-Content (Join-Path $OutputDir 'assertions.txt')
- Write-Output 'PASS_NAVIGATOR_PRODUCT: 69 independent assertions'
+ Write-Output 'PASS_NAVIGATOR_PRODUCT: 105 independent assertions'
 } finally {
  if(-not $p.HasExited){Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue}
  Remove-Item Env:NAV_NATIVE_OUTPUT,Env:NAV_NATIVE_MEDIA -ErrorAction SilentlyContinue

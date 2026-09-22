@@ -1,269 +1,90 @@
-# Implementation continuation — v0.4.2 UI/UX foundation
+# Implementation continuation — v0.4.2 UI/UX foundation candidate
 
-この文書は現mainから次の実装を開始するための入口。Authorityは `AGENTS.md` → `docs/DESIGN.md` → `docs/UI_UX_GENERIC_FILTER_PLAN.md` → `docs/ROADMAP.md` → verified evidence の順で確認する。
+最初に `AGENTS.md`、`docs/DESIGN.md`、`docs/UI_UX_GENERIC_FILTER_PLAN.md`、`docs/ROADMAP.md`、`docs/IMPLEMENTATION_STATUS.md` と現在のmain/PRを確認する。現在のユーザー決定が最上位。未実装・機能統合済み・UX受入済みを混同しない。
 
-## Current resume point
+## Current resume point — 2026-09-22
 
-Current main: `b27c3d98950e2fdf7546278d531b6a0217a4c9fb`
+- Draft PR: [#9](https://github.com/ziro-lab/ymm4-highlight-navigator/pull/9)
+- Branch: `feature/v0.4.2-ux-foundation`
+- Base main: `dc2de6e2d037c895d2b16f0dd0b45e8c0e59ea0f`
+- Exact tested source: `42263615642dc94907fbefc7471fc3015a1512ce`
+- Native + pure preflight: run `35675127362`、両job PASS。Native105項目（既存69 + UX36）。結果とhashは `IMPLEMENTATION_STATUS.md`。
+- 後続docs-only commitがあっても、上記tested sourceを新しいHEADへ読み替えない。
+- main未merge。PRはDraft維持。通常配布やユーザー受入は未完了。
 
-- W1-R Edit-time Rebindingは実装済みcheckpoint。
-- W3/W5の教材取込・Transition抽出・Filter生成・trial/save/runtime接続は再実装しない。
-- W4 Multi-Filter Review / attribution / Global Sensitivity / Prev-Next-Listの既存spineを再利用する。
-- W4-M Highlight MemoとW6 Explicit Negativeは有効な既存予定だが、**先にUI/UX foundationを整えてから revised Review UXへ統合する**。
-- 次の主作業は `docs/UI_UX_GENERIC_FILTER_PLAN.md` の NOW scope。
-- Generic Filterを大量に先行実装しない。
+## Already implemented — do not rebuild
 
-## Immediate implementation order
+既存のW1-R source-time/rebinding、FeaturePack/TransitionIndex、学習Corpus、FilterAuthor、FilterStore/revision、no-redecode queryを維持する。
 
-### UX-1 — information architecture + persistence contract
+今回追加した基盤:
 
-ユーザーの通常フローを次で固定する。
+- `ReviewConfiguration / ReviewSet / ReviewWorkspace`: 保存済みとworking stateの分離、Filter ID参照、切替前への1段復元。
+- `ReviewSetStore`: 明示保存/複製/上書き、read-only built-in、missing-reference保持、revision/writer lock、破損を空成功にしない保存。
+- 表示名・整理Groupのalias。既存教材の分類やFilter保存keyは変更しない。
+- `ReviewSettingsIntegration.cs`: Main Reviewへのセット接続、active Filter、別の選択・整理surface。
+- `LearningModel.cs`: 有効Draftを生成中止/失敗/保存失敗/分類変更で消さず、不適用Draftは試用/保存を止める。
+- `LearningIntegration.cs`: 同じNavigatorセッション内の作成Window再オープンでDraftを保持。明示終了まで試用も保持。
+- 既存/新規分類の入力表示切替、実際にrollback先がある時だけ操作可能。
+- 候補一覧内だけの `Alt+↑ / Alt+↓ / Enter`。global key hookは追加していない。
 
-```text
-対象動画
-→ 確認セット / Filter
-→ 解析
-→ 候補Review
-→ 必要なら見どころ確保
-```
+Generic Filter Pack、W4-M、W6、画像/音声検索、学習Filter自体の複製/完全削除は未追加。基盤sliceは既存3 seed Filterと既存学習Filterで検証した。
 
-Concept:
+## Next — UX-2 / UX-2.5 hands-on before generic expansion
 
-- Filter = detector/query
-- Group = 整理のみ
-- Set = Filter参照 + review設定
-- UI表記は **確認セット**
-- Genre presetという第4概念を作らない。built-in Setとして扱う。
-
-Main Reviewでは対象が最上位。Setを対象より上位概念にしない。
-
-### UX-1.5 — prevention / work preservation
-
-Filter authoringのvalid Draftを次の理由で失わせない。
-
-- Cancel
-- transient Error
-- Save failure
-- replacement generation failure
-
-新Draftの生成成功または明示的discardまでは、直前のvalid Draftを保持する。
-
-確認セットでも:
-
-- saved Set
-- current working review state
-
-を分離する。Filter ON/OFFやSensitivity変更でsaved Setをsilent overwriteしない。
-
-Filter rename / Group moveでSetが壊れないstable identityを使う。disabled/deleted Filter参照はsilent ignoreせず、UI上でdegraded stateを示す。
-
-### UX-2 — existing-capability hands-on flow
-
-新しい骨格を既存Filterだけで通す。
-
-Acceptance:
+実装済みのモデルや保存機構を再設計せず、日常操作で破綻する点を確認する。
 
 ```text
 対象固定
 → 確認セット選択
-→ Filter追加/削除
-→ Sensitivity変更
+→ Filter ON/OFF・検索
+→ 感度変更
 → 候補理由確認
-→ Prev/Next/List
-→ 現在の確認設定を保存
-→ 別Set適用
-→ 元の設定へ戻れる/失わない
+→ 前/次/一覧/Jump
+→ 新規セット保存・上書き・切替前に戻す
+→ フィルター試用・保存・試用終了
 ```
 
-Preserve:
+確認点:
 
-- explicit target capture
-- selection変更でTargetがsilent changeしない
-- no-redecode Sensitivity
-- candidate count / raw hit count
-- attribution
-- Progress / Cancel / Status
-- Filter trial と Save の分離
-- source media non-destructive
+1. 実キー入力で候補一覧のAlt+↑↓/Enterが使え、TextBoxやYMM4の編集操作を奪わないか。Command呼出しによるnative PASSは物理input/focusの証明ではない。
+2. 狭いDock、高DPI、長い名称、Filterが増えた状態でも候補一覧・状態・保存エラーへ到達できるか。save/管理のExpander展開時も確認する。
+3. セット切替/保存/再読込でworking stateが意図せず変わらず、保存済み・変更あり・試用中・参照切れを区別できるか。
+4. Draftを保持したまま分類変更→復帰、再生成中止、保存失敗→再試行が自然か。Windowを閉じる操作がDraft破棄に見えないか。
+5. 表示aliasと教材分類は別であること、フィルターのOFFは削除ではないことが伝わるか。
 
-### UX-2.5 — high-frequency review path
+Preview/保存の物理操作、入出力picker、theme/DPI、実録画精度・レビュー時間は未受入。結果に応じた狭い修正を行い、CI greenだけでUXをfreezeしない。
 
-最低限keyboard-accessible command pathを持つ:
+## Then UX-3 → UX-4 → UX-5
 
-- Previous candidate
-- Next candidate
-- Jump selected
+既存Filterで操作を確認した後、別commitまたは別PRで最小Generic Filter Packを追加する。
 
-W4-M / W6を統合する際は:
+- 大きな場面切替
+- 暗転 / フェード
+- 静穏 → 高活動
 
-- 見どころを確保
-- これは違う
+これらは候補であり、実素材で成立しない検出器を名称だけで標準搭載しない。新しい巨大Engineを作らず、既存Featureを使って少数を検証する。
 
-もshortcut-readyなcommandとして追加する。
+複数Filterのattribution・件数/密度・Set切替・管理を再評価し、その後にinteraction modelをfreezeする。画像からの意味的な類似検索や、ゲーム固有UIの高精度判定まで保証しない。
 
-Exact key assignmentやユーザーによるremap UIは後回し。
+## Persistence and preservation boundary
 
-### UX-3 — minimal Generic Filter Pack
+- 確認セット: `%LOCALAPPDATA%\Ymm4HighlightNavigator\Review\review-settings.json`。
+- Corpus/学習Filter: 既存の `%LOCALAPPDATA%\Ymm4HighlightNavigator\Learning`。正本は分離。
+- 明示保存したセットはディスクへ残る。未保存working state/Draftはセッション内保持であり、YMM4再起動/クラッシュ後の自動復元は未実装。
+- 表示aliasで既存Filter IDを変えない。教材分類のrename/migrationや学習Filter複製は別の所有権・回帰仕様が必要。
+- broken referencesを勝手に除去しない。破損ファイルを空として上書きしない。
+- Draft保持とDraft適用可否を分ける。保持しているから古い教材/revisionへ保存できるわけではない。
 
-UI骨格が既存Filterで成立した後だけ、最初の3つを追加する。
+## Regression / execution discipline
 
-1. 大きな場面切替
-2. 暗転 / フェード
-3. 静穏 → 高活動
+Pure: Core27、Rebinding29、Review27、Learning35×2素材条件。Native: required-native-cases.jsonの105 IDとsource/製品DLLを独立gateで照合する。assertion数を増やすこと自体を目的にしない。
 
-目的はFilterカタログ拡張ではなく、以下のpressure-test。
+UI/host統合に変更があるcheckpointでだけnativeを使う。docs-onlyやpure変更でWindowsを重複実行しない。unknownなhost input-routeが必要になった時だけ狭くLabへ戻し、既存host factsを再調査しない。
 
-- multiple active Filters
-- attribution
-- Set save/switch
-- candidate density
-- management
-- Sensitivity
+元動画/Review Itemの非破壊、YMM4 bundled FFmpeg、source-time再bind、no-redecode、複数Filter非排他ORとattributionを維持する。private素材・ユーザーCorpus・host binariesをcommitしない。
 
-### UX-4 / UX-5
+## Still deferred
 
-3 Filterを入れた状態でhands-onし、必要な修正後にinteraction modelをfreezeする。
+お気に入り/最近使った、rich thumbnail、key remap、Generic大量追加、Audio/Image検索、OCR/embeddings、W4-M memo、W6 Explicit Negativeは予定として残す。W4-M/W6の既存Lab evidenceと設計は有効で、新しいReview UIへ後続統合する。
 
-freeze後にだけ remaining Generic Filters → Audio → Reference Image/State search の順で拡張する。
-
-## Main Review target shape
-
-概念レイアウト:
-
-```text
-対象 [ 選択動画を対象に ]  recording_01.mp4 / 1個
-
-確認セット [ X4録画チェック ▼ ]   [現在の確認設定を保存]
-
-有効なフィルター
-[戦闘開始 ×] [暗転 ×] [高活動→静穏 ×] [+追加]
-
-検出感度
-少なく拾う ─────●──── 多く拾う
-
-候補 36件 / ヒット 48
-[ ◀ 前 ] [ 次 ▶ ] [ 一覧 ]
-
-[ status / progress ]
-```
-
-W4-M統合時:
-
-```text
-確保時間 [30] 秒
-[ ★ 見どころを確保 ]
-```
-
-通常画面へ出さない:
-
-- Pattern weights
-- primitive feature names
-- many per-filter thresholds
-- general rule builder
-
-## Authoring target shape
-
-通常フロー:
-
-```text
-教材を選ぶ
-→ 既存分類を選ぶ / 新規作成
-→ 取り込む
-→ Filter候補を作る
-→ 長尺で試す
-→ 保存
-```
-
-Rules:
-
-- folder-nameからのGroup / Filter推定を維持。
-- Group / Filter名入力は新規分類/編集時を主にする。
-- Preview/試用とSave/適用を分離。
-- rollback targetが無い時は操作をdisabledにし、predictable failureを発生させない。
-
-## Likely code touch
-
-First passで確認する候補:
-
-- `Plugin/NavigatorModel.cs`
-  - review working state / Set application
-  - enabled Filter state
-  - candidate attribution exposure
-  - shortcut-ready commands
-- `Plugin/NavigatorView.xaml`
-  - target-first layout
-  - 確認セット
-  - active Filter presentation
-- `Plugin/LearningModel.cs`
-  - valid Draft preservation
-  - rollback availability
-  - authoring state
-- `Plugin/LearningView.xaml`
-  - progressive disclosure of classification inputs
-- small new persistence/model files for Review Set if existing storage does not already cover it.
-
-Do not force Set persistence into FilterStore or duplicate Filter revision ownership.
-
-## Testing order
-
-1. Pure/model tests for Set identity, broken refs, saved-vs-working semantics.
-2. Learning tests for Draft preservation on Cancel/Error/Save failure.
-3. Existing Core/Learning regressions.
-4. Plugin/UI model tests.
-5. Native product checkpoint only when host/UI integration needs proof.
-
-Do not use native Actions for every doc-only or pure-model edit.
-
-## Existing regression to preserve
-
-- Baseline Core 27.
-- Learning 35 × 2 generated-media conditions.
-- W1-R checkpoint behavior.
-- Existing product-native integration baseline.
-- version番号だけでYMM4を拒否しない。
-- YMM4 bundled FFmpeg only.
-- Slider/Filter toggleで再Decodeしない。
-- Learning Filter trial/save/raw-free reuse。
-- Candidate attribution。
-- same-source separate occurrence / edit-time rebind semantics。
-
-## Deferred — visible but not part of this first implementation
-
-- favorites / hidden / recent
-- "used by these Sets"
-- richer management sorting
-- Before / Hit / After thumbnails
-- configurable shortcuts
-- final visual polish
-- Audio Generic Filters
-- Reference Image / State search
-- OCR / embeddings / object detection
-- complex cross-filter logic
-
-詳細は `docs/UI_UX_GENERIC_FILTER_PLAN.md` の LATER sectionをAuthorityとする。
-
-## W4-M / W6 after UI foundation
-
-W4-M Highlight MemoとW6 Explicit Negativeは捨てない。
-
-UI/UX freeze前後で、既存のLab evidenceを使って revised Main Review / candidate UXへ統合する。Host factを既にLabで証明済みなら再調査せず、product integrationだけnativeで確認する。
-
-## Branch / PR discipline
-
-次の実装はmainへ直接積み上げず、小さいDraft PRで行う。
-
-推奨:
-
-- `feature/v0.4.2-ux-foundation`
-- 必要ならwork-preservationを同PR内の独立commitにする
-- minimal Generic Filter PackはUI skeletonが成立してから別commitまたは別PR
-
-PRのScopeを越えてGeneric Filter大量追加やW6まで一気に進めない。
-
-## Stop / reopen conditions
-
-- Set semanticsがFilter revision ownershipと競合する -> 実装便利さで決めず再設計。
-- saved Setとworking stateが区別できず作業消失が起きる -> freezeしない。
-- Filterを3個程度有効化しただけでMain Reviewが破綻する -> Generic拡充前にUX修正。
-- shortcut実装にhost input-routeの未知事実が必要 -> その狭いfactだけLabへ戻す。
-- host capability変更 -> 該当機能だけfail closed。
+通常の `.ymme` install/upgradeや配布資料は別acceptance。ActionsのDLL artifactを完成インストーラーと呼ばない。明示指示なしにPRをmergeしたりreleaseしない。
