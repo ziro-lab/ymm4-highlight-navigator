@@ -40,6 +40,11 @@ public sealed class FilterStore(CorpusStore corpus)
         var head = ReadHeads().Heads.FirstOrDefault(h => h.Key == key);
         return head == null ? null : Load(head);
     }
+    public TransitionFilter? ReadPrevious(LearningLabel label)
+    {
+        var current = Read(label);
+        return current is { ParentRevision: > 0 } ? Load(new Head(current.Label.Key, current.ParentRevision)) : null;
+    }
     public TransitionFilter Apply(FilterDraft draft, CancellationToken token = default)
     {
         token.ThrowIfCancellationRequested(); draft.Filter.Validate();

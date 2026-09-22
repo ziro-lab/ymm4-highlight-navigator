@@ -85,6 +85,7 @@ internal static class LearningNativeProof
         check("learning_error_does_not_escape", learning.LastImport is { Failed: 1, Committed: 0 } && new FilterStore(store).Read(label)!.Revision == 1 && File.ReadAllText(bad) == "not a recording");
         File.Delete(bad); window.Close(); await navigator.ReloadSavedFiltersAsync();
         check("learning_close_preserves_review", navigator.Targets.Length == 2 && navigator.Profiles.Any(p => p.Learned is { Revision: 1 }) && !Application.Current.Dispatcher.HasShutdownStarted);
+        await UxNativeProof.RunAsync(navigator, timeline, output, check);
     }
     private static bool Capture(LearningModel model, string output, int width, int height)
     {
