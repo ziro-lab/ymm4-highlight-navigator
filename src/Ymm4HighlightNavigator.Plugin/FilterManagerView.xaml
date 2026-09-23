@@ -22,7 +22,7 @@
       <Expander IsExpanded="True" Margin="0,3" Header="{Binding Name}"><ItemsPresenter/></Expander>
      </ControlTemplate></Setter.Value></Setter>
     </Style></GroupStyle.ContainerStyle>
-   </ListBox.GroupStyle>
+   </GroupStyle></ListBox.GroupStyle>
    <ListBox.ItemTemplate><DataTemplate>
     <StackPanel Margin="4,4">
      <TextBlock Text="{Binding Name}" TextWrapping="Wrap" FontWeight="SemiBold"/>
