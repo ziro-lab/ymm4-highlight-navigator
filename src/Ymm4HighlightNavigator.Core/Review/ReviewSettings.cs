@@ -69,7 +69,11 @@ public sealed record ReviewFilterPresentation(string FilterId, string Group, str
 public static class ReviewBuiltIns
 {
     public static ReviewSet Basic { get; } = new("builtin.basic", "基本",
-        new ReviewConfiguration([new("seed.visual", true), new("seed.audio", true), new("seed.brightness", true)], 1).Normalize())
+        new ReviewConfiguration([
+            new(GenericFilterCatalog.LargeSceneChange.Id, true),
+            new(GenericFilterCatalog.DarkFade.Id, true),
+            new(GenericFilterCatalog.QuietToActivity.Id, true)
+        ], 1).Normalize())
     { ClassificationPath = ["汎用"] };
 }
 

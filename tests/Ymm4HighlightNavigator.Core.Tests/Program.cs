@@ -18,6 +18,17 @@ internal static class Specs
         ImmutableArray<AudioFeature> sounds = audio ? Enumerable.Range(1, 80).Select(i => new AudioFeature(i * .05, .25f, .5f, 800)).ToImmutableArray() : [];
         return new(new(1, FeatureFormat.Extractor, 2, 0, 4, audio, new string('0', 64), "generated"), frames.ToImmutable(), sounds);
     }
+    private static FeaturePack VisualLevels(params byte[] levels)
+    {
+        if (levels.Length < 4) throw new ArgumentException("Need enough frames for transition context.");
+        var extractor = new VisualExtractor();
+        var frames = ImmutableArray.CreateBuilder<VideoFeature>();
+        for (int i = 0; i < levels.Length; i++)
+            frames.Add(extractor.Extract(Enumerable.Repeat(levels[i], 64 * 36 * 3).ToArray(), i / 2d));
+        return new(new(1, FeatureFormat.Extractor, 2, 0, levels.Length / 2d, false, new string('1', 64), "generic-test"), frames.ToImmutable(), []);
+    }
+    private static HashSet<double> Anchors(ProfileEvaluation evaluation)
+        => evaluation.Hits.SelectMany(h => h.AnchorSourceTimes).Select(t => Math.Round(t, 6)).ToHashSet();
     private static void Check(bool value, string name)
     {
         assertions++;
@@ -202,6 +213,48 @@ internal static class Specs
             Check(Duration(.5) <= Duration(1) && Duration(1) <= Duration(2), "Sensitivity expands coverage");
             Reject(() => ProfileEvaluator.Evaluate(table, p, double.NaN));
             Reject(() => ProfileEvaluator.Evaluate(table, p with { Mode = MatchMode.AtLeast, RequiredMatches = 2 }));
+        });
+        await Pure("generic-large-scene-change", () =>
+        {
+            var pack = VisualLevels([.. Enumerable.Repeat((byte)0, 8), .. Enumerable.Repeat((byte)255, 8)]);
+            var result = GenericFilterEvaluator.Evaluate(new(pack), TransitionIndex.Build(pack), GenericFilterCatalog.LargeSceneChange);
+            Check(result.Compatible && !result.Hits.IsEmpty, "Strong visual cut should be detected");
+            Check(Anchors(result).Any(t => t >= 3.5 && t <= 4.5), "Scene-cut anchor should stay near the actual cut");
+        });
+        await Pure("generic-dark-fade-directional", () =>
+        {
+            var down = VisualLevels([.. Enumerable.Repeat((byte)255, 8), .. Enumerable.Repeat((byte)0, 8)]);
+            var up = VisualLevels([.. Enumerable.Repeat((byte)0, 8), .. Enumerable.Repeat((byte)255, 8)]);
+            var dark = GenericFilterEvaluator.Evaluate(new(down), TransitionIndex.Build(down), GenericFilterCatalog.DarkFade);
+            var bright = GenericFilterEvaluator.Evaluate(new(up), TransitionIndex.Build(up), GenericFilterCatalog.DarkFade);
+            Check(!dark.Hits.IsEmpty, "Transition into darkness should be detected");
+            Check(bright.Hits.IsEmpty, "Brightening must not be reinterpreted as dark/fade");
+        });
+        await Pure("generic-quiet-to-activity-directional", () =>
+        {
+            var quietThenActive = VisualLevels([
+                .. Enumerable.Repeat((byte)0, 10),
+                0, 255, 0, 255, 0, 255, 0, 255, 0, 255
+            ]);
+            var activeThenQuiet = VisualLevels([
+                0, 255, 0, 255, 0, 255, 0, 255, 0, 255,
+                .. Enumerable.Repeat((byte)0, 10)
+            ]);
+            var rising = GenericFilterEvaluator.Evaluate(new(quietThenActive), TransitionIndex.Build(quietThenActive), GenericFilterCatalog.QuietToActivity);
+            var falling = GenericFilterEvaluator.Evaluate(new(activeThenQuiet), TransitionIndex.Build(activeThenQuiet), GenericFilterCatalog.QuietToActivity);
+            Check(!rising.Hits.IsEmpty, "Quiet to sustained activity should be detected");
+            Check(falling.Hits.IsEmpty, "Activity to quiet must not match the opposite direction");
+        });
+        await Pure("generic-sensitivity-monotonic-no-audio", () =>
+        {
+            var pack = VisualLevels([.. Enumerable.Repeat((byte)0, 8), .. Enumerable.Repeat((byte)64, 8)]);
+            var table = new FeatureTable(pack); var index = TransitionIndex.Build(pack);
+            var low = Anchors(GenericFilterEvaluator.Evaluate(table, index, GenericFilterCatalog.LargeSceneChange, .5));
+            var medium = Anchors(GenericFilterEvaluator.Evaluate(table, index, GenericFilterCatalog.LargeSceneChange, 1));
+            var high = Anchors(GenericFilterEvaluator.Evaluate(table, index, GenericFilterCatalog.LargeSceneChange, 2));
+            Check(low.IsSubsetOf(medium) && medium.IsSubsetOf(high), "Higher sensitivity must not remove generic matches");
+            Check(GenericFilterCatalog.Basic.All(g => GenericFilterEvaluator.Evaluate(table, index, g).Compatible), "Visual generic pack must not require audio");
+            Reject(() => GenericFilterEvaluator.Evaluate(table, index, GenericFilterCatalog.LargeSceneChange, double.NaN));
         });
         await Pure("union-randomized-coverage", () =>
         {

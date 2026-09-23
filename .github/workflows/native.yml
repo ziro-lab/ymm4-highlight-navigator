@@ -2,9 +2,12 @@ name: Navigator native checkpoint
 on:
   workflow_dispatch:
   push:
-    branches: ['feature/w1-projection-spine', 'feature/use-ymm4-bundled-ffmpeg', 'feature/capability-guard-no-crash', 'feature/w3-w5-transition-learning', 'feature/w1r-edit-time-rebinding', 'feature/v0.4.2-ux-foundation', 'feature/v0.4.2-portable-data', 'feature/v0.4.3-view-intent-main', 'feature/v0.4.3-management']
+    branches: ['feature/w1-projection-spine', 'feature/use-ymm4-bundled-ffmpeg', 'feature/capability-guard-no-crash', 'feature/w3-w5-transition-learning', 'feature/w1r-edit-time-rebinding', 'feature/v0.4.2-ux-foundation', 'feature/v0.4.2-portable-data', 'feature/v0.4.3-view-intent-main', 'feature/v0.4.3-management', 'feature/v0.4.4-generic-filter-pack']
     paths:
+      - 'src/Ymm4HighlightNavigator.Core/**'
       - 'src/Ymm4HighlightNavigator.Plugin/**'
+      - 'tests/Ymm4HighlightNavigator.Core.Tests/**'
+      - '.github/workflows/core.yml'
       - 'tests/Ymm4HighlightNavigator.Plugin.Tests/**'
       - 'tools/fixtures/generate-rebinding.py'
       - 'tools/verify-rebinding.py'

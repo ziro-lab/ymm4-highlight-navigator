@@ -26,16 +26,20 @@ public class NotifyModel : INotifyPropertyChanged
 
 public sealed class ProfileChoice(SceneProfile profile) : NotifyModel
 {
-    // For a learned filter Profile carries only identity/display metadata. Query dispatch MUST use Learned.
+    // For generic/learned filters Profile carries identity/display metadata only.
     public SceneProfile Profile { get; } = profile;
+    public GenericFilter? Generic { get; }
     public TransitionFilter? Learned { get; }
+    public ProfileChoice(GenericFilter generic) : this(new SceneProfile(generic.Id, generic.Name, []))
+        => Generic = generic.Normalize();
     public ProfileChoice(TransitionFilter learned) : this(new SceneProfile(learned.Id,
         learned.Label.Group + " / " + learned.Label.Name + (learned.Revision == 0 ? "（試用）" : ""), []))
         => Learned = learned;
     private bool enabled = true;
     private string count = "";
     private ReviewFilterPresentation? presentation;
-    public string Group => presentation?.Group ?? Learned?.Label.Group ?? "汎用";
+    public string Group => presentation?.Group ?? Learned?.Label.Group
+        ?? (Profile.Id.StartsWith("seed.", StringComparison.Ordinal) ? "旧互換" : "汎用");
     public string ShortName => presentation?.Name ?? Learned?.Label.Name ?? Profile.Name;
     public string Name => Group + " / " + ShortName + (Learned is { Revision: 0 } ? "（試用）" : "");
     public ICommand RemoveCommand => new RelayCommand(() => Enabled = false, () => Enabled);
@@ -133,9 +137,11 @@ public sealed partial class NavigatorModel : NotifyModel, ITimelineToolViewModel
 
     public NavigatorModel()
     {
-        Profiles.Add(new(new SceneProfile("seed.visual", "映像の急変", [new(FeatureAxis.Delta, .8f, .08f)])));
-        Profiles.Add(new(new SceneProfile("seed.audio", "音の強い場面", [new(FeatureAxis.AudioPeak, .8f, .05f)])));
-        Profiles.Add(new(new SceneProfile("seed.brightness", "明るい場面", [new(FeatureAxis.Luma, .9f, .8f)])));
+        foreach (var generic in GenericFilterCatalog.Basic) Profiles.Add(new(generic));
+        // Keep pre-v0.4.4 detector identities available for old saved ReviewSets without silently changing their meaning.
+        Profiles.Add(new ProfileChoice(new SceneProfile("seed.visual", "映像の急変", [new(FeatureAxis.Delta, .8f, .08f)])) { Enabled = false });
+        Profiles.Add(new ProfileChoice(new SceneProfile("seed.audio", "音の強い場面", [new(FeatureAxis.AudioPeak, .8f, .05f)])) { Enabled = false });
+        Profiles.Add(new ProfileChoice(new SceneProfile("seed.brightness", "明るい場面", [new(FeatureAxis.Luma, .9f, .8f)])) { Enabled = false });
         foreach (var profile in Profiles) profile.PropertyChanged += ProfileChanged;
         CaptureCommand = new RelayCommand(() => Safe(CaptureSelection), () => !disposed && !IsBusy && adapter.HasTimeline);
         AnalyzeCommand = new RelayCommand(() => _ = AnalyzeFromUiAsync(), () => !disposed && !IsBusy && Targets.Length > 0);
@@ -219,7 +225,7 @@ public sealed partial class NavigatorModel : NotifyModel, ITimelineToolViewModel
         queryCancel?.Cancel(); queryCancel?.Dispose(); queryCancel = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken); var token = queryCancel.Token;
         int stamp = generation, q = ++queryGeneration;
         var sources = analyzed.ToArray(); var sessions = adapter.Sessions;
-        var profiles = Profiles.Select(p => (p.Profile, p.Learned, p.Enabled, p.Name)).ToArray(); double sens = Sensitivity;
+        var profiles = Profiles.Select(p => (p.Profile, p.Generic, p.Learned, p.Enabled, p.Name)).ToArray(); double sens = Sensitivity;
         IsQuerying = true;
         try
         {
@@ -230,8 +236,9 @@ public sealed partial class NavigatorModel : NotifyModel, ITimelineToolViewModel
                 foreach (var source in sources)
                 {
                     token.ThrowIfCancellationRequested();
-                    var evaluations = profiles.Select(p => (Choice: p, Evaluation: p.Learned is null
-                        ? ProfileEvaluator.Evaluate(source.Table, p.Profile, sens)
+                    var evaluations = profiles.Select(p => (Choice: p, Evaluation:
+                        p.Generic is not null ? GenericFilterEvaluator.Evaluate(source.Table, source.Transitions, p.Generic, sens, token)
+                        : p.Learned is null ? ProfileEvaluator.Evaluate(source.Table, p.Profile, sens)
                         : TransitionMatcher.Evaluate(source.Transitions, p.Learned, sens, token))).ToArray();
                     foreach (var e in evaluations) if (!e.Evaluation.Compatible) unavailable[e.Choice.Profile.Id]++;
                     foreach (var session in sessions.Where(s => ReviewSourceIdentity.Same(s.SourceKey, source.SourceKey)))

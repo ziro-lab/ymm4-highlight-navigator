@@ -29,29 +29,35 @@
 
 Generic Filter Pack、W4-M、W6、画像/音声検索、学習Filter自体の複製/完全削除は未追加。基盤sliceは既存3 seed Filterと既存学習Filterで検証した。
 
-## Next — Minimal Generic Filter Pack after verified management surfaces
+## Next — Hands-on pressure test before Generic expansion
 
-Main Review（PR #12）とmanagement surfaces（PR #13）は実YMM4 GREEN。管理slice exact product/native source `afb427e7ff7e383d8803f55a877163c5939b4853` / run `35884088478` / **123 independent IDs PASS**。
+最小Generic Filter Pack（PR #14）は実装・Pure/native検証済み。Exact product/native source `bfc8673532a5ed2c2eb3640f017e97441f34e72b` / run `35889708611` / **126 independent IDs PASS**。
 
-次はUI/管理を作り直さず、既存FeatureTable / TransitionIndexを再利用して **最小Generic Filter Pack** を実装する。
+**ここでは4つ目のGeneric Filterを追加しない。** 次は実素材でinteraction modelを圧力テストする。
 
-最初の3つ:
+確認するもの:
 
-1. **大きな場面切替**
-2. **暗転 / フェード**
-3. **静穏 → 高活動**
+1. candidate density
+   - 3Filter同時ONで候補が多すぎないか / 少なすぎないか
+   - Global Sensitivityを動かした時の密度変化が理解しやすいか
+2. attribution
+   - 候補に「なぜ出たか」が十分分かるか
+   - 複数Filterが同じepisodeへ寄与した時に理由が読めるか
+3. Main Review
+   - Filter chip OFF → `フィルター n/m` で戻す流れ
+   - `変更あり` / 保存 / 別名保存
+   - `見たいもの`切替 / 切替前に戻す
+4. management
+   - 見たいもの複製/rename/classification
+   - Filterの使用先 / 未使用
+5. false-positive shape
+   - 単なるcutを静穏→高活動と誤認しないか
+   - 暗い画面の継続を暗転eventとして過剰に拾わないか
+   - UIフラッシュ等を大きな場面切替として過剰に拾わないか
 
-方針:
+このHands-onで妨げる点だけ修正し、その後interaction modelをfreezeする。
 
-- user-facingでは既存learned Filterと同じ「フィルター」として扱う。
-- internalではlearned representative patternへ偽装せず、semantic ruleとして実装する。
-- raw videoの再decodeを増やさない。既存FeatureTable / TransitionSignature / TransitionCandidateを使う。
-- sensitivityは既存global sliderへ統合し、値を上げるほどhit集合が単調に増える契約を保つ。
-- audioが無い動画をsilenceとして補完しない。
-- まずbuilt-in `汎用 > 基本` の中身をこの3 generic Filterへ置換/移行する設計を検討し、genre-specific basicを増やすのはその後。
-- candidate density / attribution / Set switchingをhands-onで圧力テストしてから次のGeneric Filterを増やす。
-
-後続候補:
+次のGeneric候補はfreeze後:
 
 - 高活動 → 静穏
 - 強いフラッシュ / 明度急変

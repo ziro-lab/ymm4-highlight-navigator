@@ -22,16 +22,29 @@ internal static class UxNativeProof
         string before = Signature(); int decodeCalls = model.AnalysisBackendCallCount;
         await model.ReloadReviewSettingsAsync();
         check("ux_settings_initial_load", model.ReviewSets.Count == 1 && model.ReviewSets[0].IsBuiltIn);
+        check("ux_generic_basic_catalog",
+            GenericFilterCatalog.Basic.All(g => model.Profiles.Any(p => p.Generic?.Id == g.Id))
+            && ReviewBuiltIns.Basic.Configuration.Filters.Select(f => f.FilterId).ToHashSet(StringComparer.Ordinal)
+                .SetEquals(GenericFilterCatalog.Basic.Select(g => g.Id)));
+        check("ux_legacy_seed_compatibility_off_default",
+            model.Profiles.Where(p => p.Profile.Id.StartsWith("seed.", StringComparison.Ordinal)).Count() == 3
+            && model.Profiles.Where(p => p.Profile.Id.StartsWith("seed.", StringComparison.Ordinal)).All(p => !p.Enabled && p.Group == "旧互換"));
         check("ux_view_intent_initial_path_and_summary", model.ViewIntents.Count == 1
             && model.SelectedViewIntent?.DisplayPath == "汎用 > 基本"
-            && model.ViewIntentSummary.Contains("映像の急変", StringComparison.Ordinal)
+            && model.ViewIntentSummary.Contains("大きな場面切替", StringComparison.Ordinal)
             && model.ViewIntentSummary.Contains("3フィルター", StringComparison.Ordinal));
         check("ux_builtin_overwrite_disabled", !model.OverwriteReviewSetCommand.CanExecute(null));
         model.ApplyReviewSet(ReviewBuiltIns.Basic); await model.RequeryAsync();
-        model.Profiles.Single(p => p.Profile.Id == "seed.audio").Enabled = false;
+        var sceneGeneric = model.Profiles.Single(p => p.Profile.Id == GenericFilterCatalog.LargeSceneChange.Id);
+        var darkGeneric = model.Profiles.Single(p => p.Profile.Id == GenericFilterCatalog.DarkFade.Id);
+        var activityGeneric = model.Profiles.Single(p => p.Profile.Id == GenericFilterCatalog.QuietToActivity.Id);
+        check("ux_generic_real_fixture_behavior",
+            sceneGeneric.Count != "0件" && darkGeneric.Count != "0件" && activityGeneric.Count == "0件"
+            && model.Candidates.Any(c => c.Profiles.Any(n => n.Contains("大きな場面切替", StringComparison.Ordinal))));
+        darkGeneric.Enabled = false;
         model.Sensitivity = 1.25; await model.RequeryAsync();
         var working = model.CurrentReviewConfiguration;
-        check("ux_saved_working_separated", model.ReviewStateText.Contains("変更あり", StringComparison.Ordinal) && ReviewBuiltIns.Basic.Configuration.Sensitivity == 1 && ReviewBuiltIns.Basic.Configuration.IsEnabled("seed.audio"));
+        check("ux_saved_working_separated", model.ReviewStateText.Contains("変更あり", StringComparison.Ordinal) && ReviewBuiltIns.Basic.Configuration.Sensitivity == 1 && ReviewBuiltIns.Basic.Configuration.IsEnabled(GenericFilterCatalog.DarkFade.Id));
         check("ux_view_intent_modified_state", model.HasViewIntentChanges && model.FilterQuickSummary.StartsWith("フィルター 2/", StringComparison.Ordinal));
         model.SetName = "検証セットA"; await model.SaveReviewSetAsync(false);
         var one = model.ReviewSets.Single(s => s.Name == "検証セットA");
@@ -92,11 +105,13 @@ internal static class UxNativeProof
         model.ApplyReviewSet(unresolved); await model.RequeryAsync();
         check("ux_missing_reference_visible_retained", model.HasMissingFilters && model.CurrentReviewConfiguration.IsEnabled("missing.native") && model.MissingFilterSummary.Contains("有効 1件", StringComparison.Ordinal) && model.Candidates.Count == 0);
         model.RestoreReviewSettings(); await model.RequeryAsync();
-        var chosen = model.Profiles.Single(p => p.Profile.Id == "seed.visual");
+        var chosen = model.Profiles.Single(p => p.Profile.Id == GenericFilterCatalog.LargeSceneChange.Id);
         model.ManagedFilter = chosen; model.DisplayGroup = "整理用"; model.DisplayName = "表示名だけ変更";
         var configurationBeforeAlias = model.CurrentReviewConfiguration;
         await model.SaveFilterPresentationAsync();
-        check("ux_alias_preserves_detector_and_sets", chosen.Profile.Id == "seed.visual" && chosen.Group == "整理用" && chosen.ShortName == "表示名だけ変更" && chosen.Profile.Name == "映像の急変" && model.CurrentReviewConfiguration.EquivalentTo(configurationBeforeAlias));
+        check("ux_alias_preserves_detector_and_sets", chosen.Profile.Id == GenericFilterCatalog.LargeSceneChange.Id && chosen.Generic?.Id == GenericFilterCatalog.LargeSceneChange.Id
+            && chosen.Group == "整理用" && chosen.ShortName == "表示名だけ変更" && chosen.Profile.Name == "大きな場面切替"
+            && model.CurrentReviewConfiguration.EquivalentTo(configurationBeforeAlias));
         model.FilterSearch = "表示名だけ";
         check("ux_filter_search_uses_display_metadata", model.FilterLibrary.Cast<object>().OfType<ProfileChoice>().Count() == 1);
         model.FilterSearch = "";
@@ -160,7 +175,7 @@ internal static class UxNativeProof
         check("ux_filter_usage_filtering", learnedRow.IsUnused && learnedRow.CanDelete
             && unusedVisible.Any(r => r.FilterId == learnedRow.FilterId)
             && !usedVisible.Any(r => r.FilterId == learnedRow.FilterId)
-            && usedVisible.Any(r => r.FilterId == "seed.visual"));
+            && usedVisible.Any(r => r.FilterId == GenericFilterCatalog.LargeSceneChange.Id));
 
         var learnedFilter = learnedRow.Choice.Learned!;
         var corpus = NavigatorModel.UserCorpus();
