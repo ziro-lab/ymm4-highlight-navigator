@@ -6,71 +6,121 @@
   <Grid.RowDefinitions>
    <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
    <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
-   <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/>
+   <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+   <RowDefinition Height="*"/><RowDefinition Height="Auto"/>
   </Grid.RowDefinitions>
-  <Grid Grid.Row="0" Margin="0,0,0,6">
-   <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-   <Button x:Name="CaptureButton" Content="選択動画を対象に" Command="{Binding CaptureCommand}" Padding="8,4" IsEnabled="{Binding CanConfigure}"/>
-   <TextBlock Grid.Column="1" Text="{Binding TargetSummary}" ToolTip="{Binding TargetSummary}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="8,0,0,0"/>
-  </Grid>
-  <Grid Grid.Row="1" IsEnabled="{Binding CanConfigure}">
-   <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-   <TextBlock Text="確認セット" VerticalAlignment="Center" Margin="0,0,6,0"/>
-   <ComboBox x:Name="ReviewSetSelector" Grid.Column="1" ItemsSource="{Binding ReviewSets}" SelectedItem="{Binding SelectedReviewSet}" DisplayMemberPath="Name" AutomationProperties.Name="確認セット" MinWidth="80"/>
-   <Button Grid.Column="2" Content="戻す" Command="{Binding RestoreReviewSettingsCommand}" ToolTip="セット切替前の確認設定へ一度だけ戻します" Padding="6,2" Margin="6,0,0,0"/>
-  </Grid>
-  <StackPanel Grid.Row="2" Margin="0,3,0,4">
-   <TextBlock Text="{Binding ReviewStateText}" FontSize="11" TextTrimming="CharacterEllipsis" ToolTip="{Binding ReviewStateText}"/>
-   <Expander x:Name="SaveSettingsExpander" Header="現在の確認設定を保存・再読み込み" FontSize="11">
-    <StackPanel Margin="4,4,4,6">
-     <TextBox Text="{Binding SetName,UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="保存する確認セット名" MaxLength="100" IsEnabled="{Binding CanConfigure}"/>
+
+  <StackPanel Grid.Row="0" Margin="0,0,0,7">
+   <TextBlock Text="解析対象" FontWeight="SemiBold" Margin="0,0,0,3"/>
+   <StackPanel x:Name="NoTargetHint" Visibility="{Binding HasNoTargets,Converter={StaticResource BoolVisibility}}">
+    <TextBlock Text="まだ確認する動画がありません。YMM4で確認したい動画を選択してください。" TextWrapping="Wrap" Margin="0,0,0,5"/>
+    <Button x:Name="EmptyCaptureButton" Content="{Binding CaptureActionText}" Command="{Binding CaptureCommand}" Padding="8,4" HorizontalAlignment="Left" IsEnabled="{Binding CanConfigure}"/>
+   </StackPanel>
+   <Grid Visibility="{Binding HasTargets,Converter={StaticResource BoolVisibility}}">
+    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+    <Button x:Name="CaptureButton" Content="{Binding CaptureActionText}" Command="{Binding CaptureCommand}" Padding="7,3" IsEnabled="{Binding CanConfigure}"/>
+    <TextBlock Grid.Column="1" Text="{Binding TargetSummary}" ToolTip="{Binding TargetSummary}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="8,0,0,0"/>
+   </Grid>
+  </StackPanel>
+
+  <StackPanel Grid.Row="1" Visibility="{Binding HasTargets,Converter={StaticResource BoolVisibility}}" IsEnabled="{Binding CanConfigure}" Margin="0,0,0,5">
+   <TextBlock Text="見たいもの" FontWeight="SemiBold" Margin="0,0,0,3"/>
+   <Grid>
+    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+    <ComboBox x:Name="ViewIntentSelector" ItemsSource="{Binding ViewIntents}" SelectedItem="{Binding SelectedViewIntent}"
+     IsTextSearchEnabled="True" TextSearch.TextPath="DisplayPath" AutomationProperties.Name="見たいもの" MinWidth="100">
+     <ComboBox.ItemTemplate><DataTemplate>
+      <StackPanel Margin="1,2">
+       <TextBlock Text="{Binding DisplayPath}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+       <TextBlock Text="{Binding Summary}" FontSize="10" TextWrapping="Wrap"/>
+      </StackPanel>
+     </DataTemplate></ComboBox.ItemTemplate>
+    </ComboBox>
+    <Button Grid.Column="1" Content="切替前に戻す" Command="{Binding RestoreReviewSettingsCommand}" Padding="5,2" Margin="6,0,0,0" ToolTip="別の「見たいもの」へ切り替える前の作業状態へ一度だけ戻します"/>
+   </Grid>
+   <TextBlock x:Name="ViewIntentSummaryText" Text="{Binding ViewIntentSummary}" FontSize="10" TextWrapping="Wrap" Margin="0,3,0,0"/>
+  </StackPanel>
+
+  <StackPanel Grid.Row="2" Visibility="{Binding HasTargets,Converter={StaticResource BoolVisibility}}" Margin="0,0,0,5">
+   <TextBlock Text="使うフィルター" FontWeight="SemiBold" Margin="0,0,0,3"/>
+   <ScrollViewer MaxHeight="56" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <ItemsControl ItemsSource="{Binding ActiveFilters}" IsEnabled="{Binding CanConfigure}">
+     <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+     <ItemsControl.ItemTemplate><DataTemplate>
+      <Border BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" BorderThickness="1" CornerRadius="3" Margin="0,0,5,4" Padding="5,2">
+       <StackPanel Orientation="Horizontal">
+        <TextBlock Text="{Binding ShortName}" ToolTip="{Binding Name}" MaxWidth="135" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+        <Button Content="×" Command="{Binding RemoveCommand}" ToolTip="今回の確認でOFFにする（フィルター自体は削除しません）" AutomationProperties.Name="フィルターを今回OFFにする" Padding="3,0" Margin="4,0,0,0"/>
+       </StackPanel>
+      </Border>
+     </DataTemplate></ItemsControl.ItemTemplate>
+    </ItemsControl>
+   </ScrollViewer>
+   <Expander x:Name="QuickFilterExpander" Header="{Binding FilterQuickSummary}" FontSize="11">
+    <StackPanel Margin="4,3,0,2">
+     <ListBox x:Name="QuickFilterList" ItemsSource="{Binding Profiles}" MaxHeight="120"
+      ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+      <ListBox.ItemTemplate><DataTemplate>
+       <CheckBox IsChecked="{Binding Enabled}" Margin="2,2">
+        <StackPanel>
+         <TextBlock Text="{Binding ShortName}" TextWrapping="Wrap"/>
+         <TextBlock Text="{Binding Group}" FontSize="10"/>
+        </StackPanel>
+       </CheckBox>
+      </DataTemplate></ListBox.ItemTemplate>
+     </ListBox>
      <WrapPanel Margin="0,4,0,0">
-      <Button Content="新しいセットとして保存" Command="{Binding SaveNewReviewSetCommand}" Padding="6,3" Margin="0,0,6,4"/>
-      <Button Content="選択セットを上書き" Command="{Binding OverwriteReviewSetCommand}" Padding="6,3" Margin="0,0,6,4"/>
-      <Button Content="再読み込み" Command="{Binding ReloadReviewSettingsCommand}" Padding="6,3" Margin="0,0,0,4"/>
+      <Button x:Name="FilterOrganizerButton" Content="フィルターを整理" Command="{Binding OpenFilterManagerCommand}" Padding="6,3" Margin="0,0,6,3"/>
+      <Button x:Name="LearningButton" Content="動画からフィルターを作る" Command="{Binding OpenLearningCommand}" Padding="6,3" Margin="0,0,0,3"/>
      </WrapPanel>
-     <TextBlock Text="{Binding SettingsSaveHint}" TextWrapping="Wrap"/>
-     <TextBlock Text="{Binding ReviewStatus}" TextWrapping="Wrap" Margin="0,3,0,0"/>
     </StackPanel>
    </Expander>
+  </StackPanel>
+
+  <Border Grid.Row="3" Visibility="{Binding HasViewIntentChanges,Converter={StaticResource BoolVisibility}}"
+   BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" BorderThickness="1" CornerRadius="3" Padding="6" Margin="0,0,0,5">
+   <StackPanel>
+    <TextBlock x:Name="ModifiedViewIntentMarker" Text="● 変更あり" FontWeight="SemiBold"/>
+    <TextBlock Text="現在のFilterや感度は、保存済みの「見たいもの」と違います。" TextWrapping="Wrap" FontSize="10" Margin="0,2,0,4"/>
+    <TextBox x:Name="ViewIntentSaveName" Text="{Binding SetName,UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="保存する見たいもの名" MaxLength="100" IsEnabled="{Binding CanConfigure}"/>
+    <WrapPanel Margin="0,4,0,0">
+     <Button x:Name="OverwriteViewIntentButton" Content="この内容で保存" Command="{Binding OverwriteReviewSetCommand}" Padding="6,3" Margin="0,0,6,3"/>
+     <Button x:Name="SaveAsViewIntentButton" Content="別名で保存" Command="{Binding SaveNewReviewSetCommand}" Padding="6,3" Margin="0,0,6,3"/>
+    </WrapPanel>
+    <TextBlock Text="{Binding SettingsSaveHint}" TextWrapping="Wrap" FontSize="10"/>
+   </StackPanel>
+  </Border>
+
+  <StackPanel Grid.Row="4" Visibility="{Binding HasTargets,Converter={StaticResource BoolVisibility}}" Margin="0,0,0,4">
    <TextBlock Text="{Binding MissingFilterSummary}" TextWrapping="Wrap" Visibility="{Binding HasMissingFilters,Converter={StaticResource BoolVisibility}}"/>
    <WrapPanel Visibility="{Binding HasTrialFilters,Converter={StaticResource BoolVisibility}}">
     <TextBlock Text="フィルターを試用中（未保存）" VerticalAlignment="Center"/>
     <Button Content="試用を終了" Command="{Binding EndTrialCommand}" Padding="5,2" Margin="6,2,0,2"/>
    </WrapPanel>
+   <WrapPanel Visibility="{Binding SettingsNeedReload,Converter={StaticResource BoolVisibility}}">
+    <TextBlock Text="保存状態を読み込めていません。" VerticalAlignment="Center"/>
+    <Button Content="再読み込み" Command="{Binding ReloadReviewSettingsCommand}" Padding="5,2" Margin="6,2,0,2"/>
+   </WrapPanel>
   </StackPanel>
-  <WrapPanel Grid.Row="3" Margin="0,0,0,4">
-   <Button x:Name="FilterManagerButton" Content="フィルターを選ぶ・整理" Command="{Binding OpenFilterManagerCommand}" Padding="6,3" Margin="0,0,6,2"/>
-   <Button x:Name="LearningButton" Content="動画からフィルターを作る" Command="{Binding OpenLearningCommand}" Padding="6,3" Margin="0,0,0,2"/>
-  </WrapPanel>
-  <ScrollViewer Grid.Row="4" MaxHeight="62" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,0,0,4">
-   <ItemsControl ItemsSource="{Binding ActiveFilters}" IsEnabled="{Binding CanConfigure}">
-    <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-    <ItemsControl.ItemTemplate><DataTemplate>
-     <Border BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}" BorderThickness="1" CornerRadius="3" Margin="0,0,5,4" Padding="5,2">
-      <StackPanel Orientation="Horizontal">
-       <TextBlock Text="{Binding ShortName}" ToolTip="{Binding Name}" MaxWidth="135" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-       <Button Content="×" Command="{Binding RemoveCommand}" ToolTip="この確認設定で無効にする（削除ではありません）" AutomationProperties.Name="フィルターを無効にする" Padding="3,0" Margin="4,0,0,0"/>
-      </StackPanel>
-     </Border>
-    </DataTemplate></ItemsControl.ItemTemplate>
-   </ItemsControl>
-  </ScrollViewer>
-  <Grid Grid.Row="5" Margin="0,0,0,6" IsEnabled="{Binding CanConfigure}">
+
+  <Grid Grid.Row="5" Visibility="{Binding HasTargets,Converter={StaticResource BoolVisibility}}" Margin="0,0,0,6" IsEnabled="{Binding CanConfigure}">
    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
    <TextBlock Text="少なく拾う" VerticalAlignment="Center" FontSize="11"/>
    <Slider x:Name="SensitivitySlider" Grid.Column="1" Minimum="0.25" Maximum="2" Value="{Binding Sensitivity,Mode=TwoWay}" Margin="6,0" AutomationProperties.Name="検出感度" ToolTip="検出感度。動画を再解析せず候補を更新します。"/>
    <TextBlock Grid.Column="2" Text="多く拾う" VerticalAlignment="Center" FontSize="11"/>
   </Grid>
-  <WrapPanel Grid.Row="6" Margin="0,0,0,4">
+
+  <WrapPanel Grid.Row="6" Visibility="{Binding HasTargets,Converter={StaticResource BoolVisibility}}" Margin="0,0,0,4">
    <Button x:Name="AnalyzeButton" Content="解析" Command="{Binding AnalyzeCommand}" Padding="8,4" Margin="0,0,5,3" IsEnabled="{Binding CanConfigure}"/>
    <Button Content="中止" Command="{Binding CancelCommand}" Padding="6,4" Margin="0,0,8,3"/>
    <Button x:Name="PreviousButton" Content="◀ 前" Command="{Binding PreviousCommand}" Padding="6,4" Margin="0,0,5,3" ToolTip="前の候補へ移動。候補一覧内では Alt+↑"/>
    <Button x:Name="NextButton" Content="次 ▶" Command="{Binding NextCommand}" Padding="6,4" Margin="0,0,5,3" ToolTip="次の候補へ移動。候補一覧内では Alt+↓"/>
    <Button Content="選択候補へ" Command="{Binding JumpCommand}" Padding="6,4" Margin="0,0,0,3" ToolTip="候補一覧内では Enter"/>
   </WrapPanel>
-  <TextBlock Grid.Row="7" Text="{Binding CandidateSummary}" Margin="0,0,0,4"/>
-  <ListBox x:Name="CandidateList" Grid.Row="8" ItemsSource="{Binding Candidates}" SelectedItem="{Binding Selected}" MouseDoubleClick="CandidateDoubleClick"
+
+  <TextBlock Grid.Row="7" Visibility="{Binding HasTargets,Converter={StaticResource BoolVisibility}}" Text="{Binding CandidateSummary}" Margin="0,0,0,4"/>
+  <ListBox x:Name="CandidateList" Grid.Row="9" Visibility="{Binding HasTargets,Converter={StaticResource BoolVisibility}}"
+   ItemsSource="{Binding Candidates}" SelectedItem="{Binding Selected}" MouseDoubleClick="CandidateDoubleClick"
    ToolTip="Enter: 選択候補へ移動 / Alt+↑↓: 前・次。✓は移動済みで、確認完了の判定ではありません。"
    ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
    <ListBox.InputBindings>
@@ -80,9 +130,11 @@
    </ListBox.InputBindings>
    <ListBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Display}" TextWrapping="Wrap" Margin="1,2"/></DataTemplate></ListBox.ItemTemplate>
   </ListBox>
-  <StackPanel Grid.Row="9" Margin="0,5,0,0">
+
+  <StackPanel Grid.Row="10" Visibility="{Binding HasTargets,Converter={StaticResource BoolVisibility}}" Margin="0,5,0,0">
    <ProgressBar Minimum="0" Maximum="1" Value="{Binding Progress,Mode=OneWay}" Height="4"/>
    <TextBlock Text="{Binding Status}" TextWrapping="Wrap" Margin="0,4,0,0" MaxHeight="42" ToolTip="{Binding Status}"/>
+   <TextBlock Text="{Binding ReviewStatus}" TextWrapping="Wrap" FontSize="10" Margin="0,2,0,0" MaxHeight="34" ToolTip="{Binding ReviewStatus}"/>
   </StackPanel>
  </Grid>
 </UserControl>

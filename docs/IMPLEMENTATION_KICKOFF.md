@@ -29,9 +29,33 @@
 
 Generic Filter Pack、W4-M、W6、画像/音声検索、学習Filter自体の複製/完全削除は未追加。基盤sliceは既存3 seed Filterと既存学習Filterで検証した。
 
-## Next — UX-2 information architecture correction + cognitive walkthrough
+## Next — UX-2.7 management surfaces after verified Main Review
 
-既存の保存・検出・ReviewSet内部モデルを壊さず、ユーザー向けの日常概念を **「見たいもの」** へ寄せる。実装前の具体仕様は `docs/UI_UX_GENERIC_FILTER_PLAN.md` の2026-09-23 cognitive walkthroughをAuthorityとする。
+`見たいもの` Main Reviewの最小sliceはPR #12で実装・native検証済み。Exact product/native source `3598261b42fc9f1444fba106e58ebac52f06906b` / run `35878382449` / 116 independent IDs PASS。後続Pure testで旧ClassificationPathなし保存も互換PASS。
+
+次はMain Reviewを作り直さず、**稀なasset管理操作を専用surfaceへ完成させる**。
+
+優先:
+
+1. `見たいものを整理`
+   - 一覧 / classification path
+   - 既存・built-inから複製
+   - rename
+   - classification move
+   - user-created delete
+   - built-inはduplicate可、overwrite/delete不可
+2. `フィルターを整理`
+   - search
+   - all / used / unused
+   - usage count
+   - concrete usage destinations（どの見たいもので使われるか）
+   - Filter duplicate/deleteは既存Filter identity / learning ownershipを確認してから狭く実装
+3. 管理surface完成後、最小Generic Filter Pack
+   - 大きな場面切替
+   - 暗転 / フェード
+   - 静穏 → 高活動
+
+実装前の具体仕様は `docs/UI_UX_GENERIC_FILTER_PLAN.md` の2026-09-23 cognitive walkthroughをAuthorityとする。
 
 ```text
 解析対象を固定

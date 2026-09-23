@@ -109,5 +109,10 @@
   "ux_second_save_enables_actual_rollback",
   "ux_rollback_keeps_unsaved_draft_stale",
   "ux_classification_progressive_disclosure",
-  "ux_explicit_discard_only_clears_draft"
+  "ux_explicit_discard_only_clears_draft",
+  "ux_view_intent_initial_path_and_summary",
+  "ux_view_intent_modified_state",
+  "ux_view_intent_save_inherits_classification",
+  "ux_quick_filter_disclosure_layout",
+  "ux_empty_state_next_action"
 ]

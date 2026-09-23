@@ -22,15 +22,22 @@ internal static class UxNativeProof
         string before = Signature(); int decodeCalls = model.AnalysisBackendCallCount;
         await model.ReloadReviewSettingsAsync();
         check("ux_settings_initial_load", model.ReviewSets.Count == 1 && model.ReviewSets[0].IsBuiltIn);
+        check("ux_view_intent_initial_path_and_summary", model.ViewIntents.Count == 1
+            && model.SelectedViewIntent?.DisplayPath == "汎用 > 基本"
+            && model.ViewIntentSummary.Contains("映像の急変", StringComparison.Ordinal)
+            && model.ViewIntentSummary.Contains("3フィルター", StringComparison.Ordinal));
         check("ux_builtin_overwrite_disabled", !model.OverwriteReviewSetCommand.CanExecute(null));
         model.ApplyReviewSet(ReviewBuiltIns.Basic); await model.RequeryAsync();
         model.Profiles.Single(p => p.Profile.Id == "seed.audio").Enabled = false;
         model.Sensitivity = 1.25; await model.RequeryAsync();
         var working = model.CurrentReviewConfiguration;
         check("ux_saved_working_separated", model.ReviewStateText.Contains("変更あり", StringComparison.Ordinal) && ReviewBuiltIns.Basic.Configuration.Sensitivity == 1 && ReviewBuiltIns.Basic.Configuration.IsEnabled("seed.audio"));
+        check("ux_view_intent_modified_state", model.HasViewIntentChanges && model.FilterQuickSummary.StartsWith("フィルター 2/", StringComparison.Ordinal));
         model.SetName = "検証セットA"; await model.SaveReviewSetAsync(false);
         var one = model.ReviewSets.Single(s => s.Name == "検証セットA");
         check("ux_set_saved_and_selected", one.Configuration.EquivalentTo(working) && model.SelectedReviewSet?.Id == one.Id && !model.ReviewStateText.Contains("変更あり", StringComparison.Ordinal));
+        check("ux_view_intent_save_inherits_classification", one.ClassificationPath.SequenceEqual(new[] { "汎用" })
+            && model.SelectedViewIntent?.DisplayPath == "汎用 > 検証セットA");
         model.SetName = "検証セットB"; await model.SaveReviewSetAsync(false);
         var two = model.ReviewSets.Single(s => s.Name == "検証セットB");
         check("ux_set_duplicate_independent", one.Id != two.Id && one.Configuration.EquivalentTo(two.Configuration));
@@ -71,7 +78,7 @@ internal static class UxNativeProof
         check("ux_chip_off_is_not_delete", !chosen.Enabled && model.Profiles.Contains(chosen) && !model.ActiveFilters.Contains(chosen));
         chosen.Enabled = true; await model.RequeryAsync();
         model.OpenFilterManagerCommand.Execute(null);
-        var manager = Application.Current.Windows.Cast<Window>().Single(w => w.Title == "フィルターの選択・整理");
+        var manager = Application.Current.Windows.Cast<Window>().Single(w => w.Title == "フィルターを整理");
         check("ux_manager_surface_and_narrow_layout", manager.Content is FilterManagerView && Capture(new FilterManagerView { DataContext = model }, output, "filter-manager", 360, 480, ["FilterSearchBox", "FilterLibraryList", "ManagerDataStoragePath", "ManagerOpenDataFolderButton"]));
         manager.Close();
         model.OpenLearningCommand.Execute(null);
@@ -91,7 +98,17 @@ internal static class UxNativeProof
         await DraftFailures(output, check);
         model.ApplyReviewSet(ReviewBuiltIns.Basic); await model.RequeryAsync();
         var view = new NavigatorView { DataContext = model };
-        check("ux_target_set_review_narrow_layout", Capture(view, output, "ux-review", 360, 480, ["CaptureButton", "ReviewSetSelector", "FilterManagerButton", "CandidateList", "SensitivitySlider"]));
+        check("ux_target_set_review_narrow_layout", Capture(view, output, "ux-review", 360, 480,
+            ["CaptureButton", "ViewIntentSelector", "ViewIntentSummaryText", "QuickFilterExpander", "CandidateList", "SensitivitySlider"]));
+        var quickView = new NavigatorView { DataContext = model };
+        ((Expander)quickView.FindName("QuickFilterExpander")).IsExpanded = true;
+        check("ux_quick_filter_disclosure_layout", Capture(quickView, output, "ux-review-filters", 360, 600,
+            ["ViewIntentSelector", "QuickFilterExpander", "QuickFilterList", "FilterOrganizerButton", "LearningButton", "SensitivitySlider"]));
+        using (var emptyModel = new NavigatorModel())
+        {
+            var emptyView = new NavigatorView { DataContext = emptyModel };
+            check("ux_empty_state_next_action", Capture(emptyView, output, "ux-empty", 360, 360, ["NoTargetHint", "EmptyCaptureButton"]));
+        }
         var list = (ListBox)view.FindName("CandidateList");
         var keys = list.InputBindings.OfType<KeyBinding>().ToArray();
         check("ux_navigation_keyboard_bindings_local", keys.Length == 3 && keys.Any(k => k.Key == Key.Up && k.Modifiers == ModifierKeys.Alt && k.Command == model.PreviousCommand)
