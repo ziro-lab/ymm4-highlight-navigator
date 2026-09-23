@@ -87,4 +87,19 @@ public sealed class FilterStore(CorpusStore corpus)
         LearningJson.Write(HeadPath, new HeadIndex(1, heads.Heads.SetItem(heads.Heads.IndexOf(head), previousHead)), ValidateHeads, token);
         return previous;
     }
+    public TransitionFilter Remove(LearningLabel label, int expectedRevision, CancellationToken token = default)
+    {
+        token.ThrowIfCancellationRequested();
+        label = label.Normalize();
+        using var writer = corpus.AcquireWriter();
+        var heads = ReadHeads();
+        var head = heads.Heads.SingleOrDefault(h => h.Key == label.Key)
+            ?? throw new InvalidOperationException("削除するフィルターがありません。");
+        if (head.Revision != expectedRevision)
+            throw new InvalidOperationException("フィルターの版が変更されました。再読み込みしてから削除してください。");
+        var removed = Load(head);
+        LearningJson.Write(HeadPath, new HeadIndex(1, heads.Heads.Remove(head)), ValidateHeads, token);
+        // Immutable revision files and Corpus membership intentionally remain as recoverable history.
+        return removed;
+    }
 }

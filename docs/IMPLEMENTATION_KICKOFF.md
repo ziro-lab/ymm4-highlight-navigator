@@ -29,65 +29,35 @@
 
 Generic Filter Pack、W4-M、W6、画像/音声検索、学習Filter自体の複製/完全削除は未追加。基盤sliceは既存3 seed Filterと既存学習Filterで検証した。
 
-## Next — UX-2.7 management surfaces after verified Main Review
+## Next — Minimal Generic Filter Pack after verified management surfaces
 
-`見たいもの` Main Reviewの最小sliceはPR #12で実装・native検証済み。Exact product/native source `3598261b42fc9f1444fba106e58ebac52f06906b` / run `35878382449` / 116 independent IDs PASS。後続Pure testで旧ClassificationPathなし保存も互換PASS。
+Main Review（PR #12）とmanagement surfaces（PR #13）は実YMM4 GREEN。管理slice exact product/native source `afb427e7ff7e383d8803f55a877163c5939b4853` / run `35884088478` / **123 independent IDs PASS**。
 
-次はMain Reviewを作り直さず、**稀なasset管理操作を専用surfaceへ完成させる**。
+次はUI/管理を作り直さず、既存FeatureTable / TransitionIndexを再利用して **最小Generic Filter Pack** を実装する。
 
-優先:
+最初の3つ:
 
-1. `見たいものを整理`
-   - 一覧 / classification path
-   - 既存・built-inから複製
-   - rename
-   - classification move
-   - user-created delete
-   - built-inはduplicate可、overwrite/delete不可
-2. `フィルターを整理`
-   - search
-   - all / used / unused
-   - usage count
-   - concrete usage destinations（どの見たいもので使われるか）
-   - Filter duplicate/deleteは既存Filter identity / learning ownershipを確認してから狭く実装
-3. 管理surface完成後、最小Generic Filter Pack
-   - 大きな場面切替
-   - 暗転 / フェード
-   - 静穏 → 高活動
+1. **大きな場面切替**
+2. **暗転 / フェード**
+3. **静穏 → 高活動**
 
-実装前の具体仕様は `docs/UI_UX_GENERIC_FILTER_PLAN.md` の2026-09-23 cognitive walkthroughをAuthorityとする。
+方針:
 
-```text
-解析対象を固定
-→ 見たいものを直接選択
-   （分類は ゲーム > X4 のようにpicker内で表示）
-→ 使用中Filterを確認 / 必要なら即ON-OFF
-→ 解析
-→ 候補理由を確認
-→ 前/次/一覧/Jump
-→ Filter / Sensitivityを調整
-→ 変更ありを認識
-→ 必要なら保存 / 別名保存
-```
+- user-facingでは既存learned Filterと同じ「フィルター」として扱う。
+- internalではlearned representative patternへ偽装せず、semantic ruleとして実装する。
+- raw videoの再decodeを増やさない。既存FeatureTable / TransitionSignature / TransitionCandidateを使う。
+- sensitivityは既存global sliderへ統合し、値を上げるほどhit集合が単調に増える契約を保つ。
+- audioが無い動画をsilenceとして補完しない。
+- まずbuilt-in `汎用 > 基本` の中身をこの3 generic Filterへ置換/移行する設計を検討し、genre-specific basicを増やすのはその後。
+- candidate density / attribution / Set switchingをhands-onで圧力テストしてから次のGeneric Filterを増やす。
 
-実装上の注意:
+後続候補:
 
-- 内部 `ReviewSet` は残す。UIラベルだけの置換ではなく、分類path・要約・modified stateを含む操作モデルを整える。
-- 内部 `Target` は解析対象の意味を維持し、「見たいもの」に流用しない。
-- 既存Filter presentation `Group` と、「見たいもの」のジャンル/分類pathを同じフィールドにしない。
-- Main ReviewのFilter ON/OFFと、Filter assetのrename/duplicate/delete/使用先確認を分離する。
-- 「フィルターを選ぶ・整理」の一画面混在は解消候補。quick chooserと管理surfaceを分ける。
-- 基本の「見たいもの」はbuilt-in ReviewSetとしてstarter contentに使い、新しいPreset概念を増やさない。
+- 高活動 → 静穏
+- 強いフラッシュ / 明度急変
+- 長時間ほぼ静止
+- 画面構成の大きな変化
 
-確認点:
-
-1. 実キー入力で候補一覧のAlt+↑↓/Enterが使え、TextBoxやYMM4の編集操作を奪わないか。Command呼出しによるnative PASSは物理input/focusの証明ではない。
-2. 狭いDock、高DPI、長い名称、Filterが増えた状態でも候補一覧・状態・保存エラーへ到達できるか。save/管理のExpander展開時も確認する。
-3. セット切替/保存/再読込でworking stateが意図せず変わらず、保存済み・変更あり・試用中・参照切れを区別できるか。
-4. Draftを保持したまま分類変更→復帰、再生成中止、保存失敗→再試行が自然か。Windowを閉じる操作がDraft破棄に見えないか。
-5. 表示aliasと教材分類は別であること、フィルターのOFFは削除ではないことが伝わるか。
-
-Preview/保存の物理操作、入出力picker、theme/DPI、実録画精度・レビュー時間は未受入。結果に応じた狭い修正を行い、CI greenだけでUXをfreezeしない。
 
 ## Then UX-3 → UX-4 → UX-5
 

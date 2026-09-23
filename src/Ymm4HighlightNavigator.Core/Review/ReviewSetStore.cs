@@ -95,6 +95,18 @@ public sealed class ReviewSetStore(string root)
         }, token);
     }
 
+    public ReviewSettingsSnapshot Delete(string id, long expectedRevision, CancellationToken token = default)
+    {
+        if (!ReviewNames.ValidId(id) || !id.StartsWith("user.", StringComparison.Ordinal))
+            throw new InvalidOperationException("標準の見たいものは削除できません。");
+        return Update(expectedRevision, current =>
+        {
+            var old = current.Sets.FirstOrDefault(s => s.Id == id)
+                ?? throw new InvalidOperationException("削除する見たいものが見つかりません。");
+            return current with { Sets = current.Sets.Remove(old) };
+        }, token);
+    }
+
     public ReviewSettingsSnapshot SetPresentation(ReviewFilterPresentation presentation, long expectedRevision, CancellationToken token = default)
     {
         var value = presentation.Normalize();

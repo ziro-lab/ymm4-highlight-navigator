@@ -26,7 +26,7 @@
   <StackPanel Grid.Row="1" Visibility="{Binding HasTargets,Converter={StaticResource BoolVisibility}}" IsEnabled="{Binding CanConfigure}" Margin="0,0,0,5">
    <TextBlock Text="見たいもの" FontWeight="SemiBold" Margin="0,0,0,3"/>
    <Grid>
-    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
     <ComboBox x:Name="ViewIntentSelector" ItemsSource="{Binding ViewIntents}" SelectedItem="{Binding SelectedViewIntent}"
      IsTextSearchEnabled="True" TextSearch.TextPath="DisplayPath" AutomationProperties.Name="見たいもの" MinWidth="100">
      <ComboBox.ItemTemplate><DataTemplate>
@@ -36,7 +36,8 @@
       </StackPanel>
      </DataTemplate></ComboBox.ItemTemplate>
     </ComboBox>
-    <Button Grid.Column="1" Content="切替前に戻す" Command="{Binding RestoreReviewSettingsCommand}" Padding="5,2" Margin="6,0,0,0" ToolTip="別の「見たいもの」へ切り替える前の作業状態へ一度だけ戻します"/>
+    <Button x:Name="ViewIntentOrganizerButton" Grid.Column="1" Content="整理" Command="{Binding OpenViewIntentManagerCommand}" Padding="5,2" Margin="6,0,0,0" ToolTip="見たいものを複製・名前変更・分類移動・削除します"/>
+    <Button Grid.Column="2" Content="切替前に戻す" Command="{Binding RestoreReviewSettingsCommand}" Padding="5,2" Margin="6,0,0,0" ToolTip="別の「見たいもの」へ切り替える前の作業状態へ一度だけ戻します"/>
    </Grid>
    <TextBlock x:Name="ViewIntentSummaryText" Text="{Binding ViewIntentSummary}" FontSize="10" TextWrapping="Wrap" Margin="0,3,0,0"/>
   </StackPanel>

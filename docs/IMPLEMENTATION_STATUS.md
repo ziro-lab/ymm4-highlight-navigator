@@ -2,6 +2,69 @@
 
 設計正本は **DESIGN v0.4.2**。この文書は実装・検証済みの範囲を記録する。初期学習経路が動いたことと、全機能完成・一般配布・実ゲーム品質は別のClaim。
 
+## 見たいもの / Filter management checkpoint — 2026-09-24 / PR #13
+
+**Main Reviewを膨らませず、稀な整理・削除操作を専用surfaceへ分離した管理sliceが実YMM4 GREEN。**
+
+- Branch: `feature/v0.4.3-management`; Draft PR #13。BaseはPR #12。
+- Exact product/native tested source: `afb427e7ff7e383d8803f55a877163c5939b4853`。
+- Run `35884088478`: Pure / product-native 両job PASS。
+- 実YMM4 Lite **4.56.1.0** / .NET10: **123 independent IDs PASS**。
+- Product / proof build: **0 warnings / 0 errors**。
+- Native artifact: `10761518055` / SHA256 `023a161acc9288bd99df12fb74a5add1deb75ed2ad8c2e414807caea6f14ef97`。
+- Pure artifact: `10761697260` / SHA256 `933459db6a6f08a608b07c896cfdf963d1ddf997c53bdcc1c659fc8ffac64b70`。
+- Review: **34 cases PASS**。
+- Learning: **36 cases PASS × ordinary + stream-copy**。
+
+実装済み:
+
+- `見たいものを整理` window:
+  - built-in / user-created一覧
+  - built-in / 既存から複製
+  - user-created rename
+  - 可変長classification path編集（例: `動画 > ゲーム`）
+  - user-created delete
+  - built-inはduplicate可、直接rename/delete不可
+  - duplicate / rename / classification move / deleteでworking review configurationを破壊しない
+- Main Reviewには `整理` entryのみ追加し、日常操作面を管理機能で膨らませない。
+- `フィルターを整理`:
+  - search
+  - `すべて / 使用中 / 未使用`
+  - 保存済み「見たいもの」のusage destinations
+  - current working stateでのusage
+  - presentation name / Filter Group編集
+  - deleteは **未使用 + 自作 + 保存済みrevision** のみ
+- learned Filter deleteはactive headだけを外し、Corpusとimmutable revision historyを保持。再作成時も既存revision fileを上書きしない。
+
+Native追加required:
+
+- `ux_view_intent_manager_layout`
+- `ux_view_intent_duplicate_preserves_working`
+- `ux_view_intent_rename_move_preserves_config`
+- `ux_view_intent_delete_preserves_working`
+- `ux_filter_usage_metadata`
+- `ux_filter_usage_filtering`
+- `ux_unused_learned_filter_safe_delete`
+
+Retained failures:
+
+- run `35882557512`: 新Learning case自身はPASSしたが、独立gate固定件数35→36未更新でfalse-negative。
+- run `35882750436`: Pure GREEN後、FilterManager XAML GroupStyle閉じタグ欠落でProduct build FAIL。
+- run `35883069468`: Product build GREEN、見たいもの管理native項目もPASSしたが、Filter管理Window経路でproof result publication前に終了。
+- Filter管理のprojection/bindingを単純化して、required caseを削らずrun `35884088478`で123/123 PASS。
+
+UI screenshot目視:
+
+- `view-intent-manager-420x560.png`: 「何を探す構成か」を一覧で認識し、複製・名前/分類・削除の役割が読める。
+- `filter-manager-380x540.png`: 使用状況とusage destinationsが先に見え、削除可能条件/理由も文脈内で確認できる。
+
+未完了:
+
+- Genre別built-in basics。
+- 最小Generic Filter Pack。
+- management UXの実ユーザーHands-on。
+- favorites / recent / hiddenなどcatalog scale依存機能。
+
 ## 見たいもの Main Review checkpoint — 2026-09-23 / PR #12
 
 **内部ReviewSet/Targetを維持したまま、ユーザー向けMain Reviewを「見たいもの」中心へ変更し、Pure + 実YMM4統合がPASS。管理surfaceの完成・Generic Filter Pack・Hands-onは後続。**

@@ -99,7 +99,7 @@ public sealed partial class NavigatorModel
     public ICommand SaveFilterPresentationCommand => new RelayCommand(() => _ = SaveFilterPresentationAsync(),
         () => !disposed && CanConfigure && settingsReady && ManagedFilter != null && !string.IsNullOrWhiteSpace(DisplayGroup) && !string.IsNullOrWhiteSpace(DisplayName));
 
-    public string FilterSearch { get => filterSearch; set { filterSearch = value; Changed(); filterLibrary?.Refresh(); } }
+    public string FilterSearch { get => filterSearch; set { filterSearch = value; Changed(); filterLibrary?.Refresh(); RefreshVisibleFilterManagementRows(); } }
     public ICollectionView FilterLibrary
     {
         get
@@ -176,6 +176,7 @@ public sealed partial class NavigatorModel
         foreach (var p in Profiles.Where(p => p.Enabled)) ActiveFilters.Add(p);
         filterLibrary?.Refresh();
         RebuildViewIntents();
+        RefreshManagementSurfaces();
     }
 
     private ReviewConfiguration CaptureReviewConfiguration()
@@ -355,5 +356,6 @@ public sealed partial class NavigatorModel
         settingsCancel?.Cancel();
         try { filterWindow?.Close(); } catch (Exception) { /* Optional view must not prevent host disposal. */ }
         filterWindow = null;
+        CloseViewIntentManagementSurface();
     }
 }

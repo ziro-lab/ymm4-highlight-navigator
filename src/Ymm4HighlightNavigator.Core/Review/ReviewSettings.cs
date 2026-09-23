@@ -103,6 +103,22 @@ public sealed class ReviewWorkspace
         if (!Current.EquivalentTo(captured) || !valid.Configuration.EquivalentTo(captured)) return false;
         AppliedSet = valid; return true;
     }
+    public bool RefreshAppliedMetadata(ReviewSet saved)
+    {
+        var valid = saved.Normalize();
+        if (AppliedSet?.Id != valid.Id) return false;
+        if (!AppliedSet.Configuration.EquivalentTo(valid.Configuration))
+            throw new InvalidOperationException("保存済みの検出内容が変わっているため、表示情報だけを更新できません。");
+        AppliedSet = valid;
+        return true;
+    }
+    public bool ForgetSaved(string id)
+    {
+        bool changed = false;
+        if (AppliedSet?.Id == id) { AppliedSet = null; changed = true; }
+        if (previous?.Set?.Id == id) previous = null;
+        return changed;
+    }
 }
 
 internal static class ReviewNames

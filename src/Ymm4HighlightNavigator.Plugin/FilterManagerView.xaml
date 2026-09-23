@@ -2,31 +2,41 @@
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" MinWidth="320" MinHeight="340">
  <Grid Margin="10">
-  <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-  <TextBlock Text="保存済みフィルターの表示名と整理グループを管理します。ON/OFFはメイン画面の「フィルター n/m」から変更します。" TextWrapping="Wrap" Margin="0,0,0,6"/>
-  <TextBox x:Name="FilterSearchBox" Grid.Row="1" Text="{Binding FilterSearch,UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="フィルター名・グループで検索" ToolTip="名前・グループで検索" Margin="0,0,0,6"/>
-  <ListBox Grid.Row="2" x:Name="FilterLibraryList" ItemsSource="{Binding FilterLibrary}" SelectedItem="{Binding ManagedFilter}" IsEnabled="{Binding CanConfigure}"
+  <Grid.RowDefinitions>
+   <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/>
+   <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+  </Grid.RowDefinitions>
+  <TextBlock Text="保存済みフィルターを整理します。ON/OFFはメイン画面の「フィルター n/m」から変更します。" TextWrapping="Wrap" Margin="0,0,0,6"/>
+  <Grid Grid.Row="1" Margin="0,0,0,6">
+   <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+   <TextBox x:Name="FilterSearchBox" Text="{Binding FilterSearch,UpdateSourceTrigger=PropertyChanged}"
+    AutomationProperties.Name="フィルター名・グループ・使用先で検索" ToolTip="名前・整理グループ・使用先で検索"/>
+   <ComboBox x:Name="FilterUsageModeSelector" Grid.Column="1" ItemsSource="{Binding FilterUsageModes}" SelectedItem="{Binding FilterUsageMode}"
+    AutomationProperties.Name="フィルター使用状況" MinWidth="82" Margin="6,0,0,0"/>
+  </Grid>
+  <ListBox Grid.Row="2" x:Name="FilterLibraryList" ItemsSource="{Binding VisibleFilterManagementRows}" SelectedItem="{Binding ManagedFilterRow}" IsEnabled="{Binding CanConfigure}"
    ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.IsVirtualizingWhenGrouping="True" VirtualizingPanel.VirtualizationMode="Recycling">
-   <ListBox.GroupStyle><GroupStyle>
-    <GroupStyle.ContainerStyle><Style TargetType="{x:Type GroupItem}">
-     <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="{x:Type GroupItem}">
-      <Expander IsExpanded="True" Margin="0,3" Header="{Binding Name}"><ItemsPresenter/></Expander>
-     </ControlTemplate></Setter.Value></Setter>
-    </Style></GroupStyle.ContainerStyle>
-   </GroupStyle></ListBox.GroupStyle>
    <ListBox.ItemTemplate><DataTemplate>
     <StackPanel Margin="4,4">
-     <TextBlock Text="{Binding ShortName}" TextWrapping="Wrap" FontWeight="SemiBold"/>
-     <TextBlock Text="{Binding Count}" FontSize="11"/>
+     <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+     <TextBlock Text="{Binding Group}" FontSize="10" TextWrapping="Wrap"/>
+     <TextBlock Text="{Binding Kind}" FontSize="11"/>
+     <TextBlock Text="{Binding UsageSummary}" FontSize="11"/>
     </StackPanel>
    </DataTemplate></ListBox.ItemTemplate>
   </ListBox>
-  <Expander Grid.Row="3" Header="選択フィルターの表示名・整理グループ" Margin="0,6,0,0">
+  <Expander Grid.Row="3" Header="選択フィルターの詳細" IsExpanded="True" Margin="0,6,0,0">
    <StackPanel Margin="4,4,4,0">
-    <TextBlock Text="表示上の整理だけを変更します。教材の分類や検出結果は変わりません。" TextWrapping="Wrap" FontSize="11"/>
-    <TextBlock Text="整理グループ"/><TextBox Text="{Binding DisplayGroup,UpdateSourceTrigger=PropertyChanged}" MaxLength="100" AutomationProperties.Name="表示グループ" IsEnabled="{Binding CanConfigure}"/>
-    <TextBlock Text="表示名" Margin="0,3,0,0"/><TextBox Text="{Binding DisplayName,UpdateSourceTrigger=PropertyChanged}" MaxLength="100" AutomationProperties.Name="フィルター表示名" IsEnabled="{Binding CanConfigure}"/>
-    <Button Content="表示情報を保存" Command="{Binding SaveFilterPresentationCommand}" HorizontalAlignment="Left" Margin="0,5,0,0" Padding="8,3"/>
+    <TextBlock x:Name="FilterUsageDestinations" Text="{Binding ManagedFilterRow.UsageDestinationsText}" TextWrapping="Wrap" FontSize="11" Margin="0,0,0,5"/>
+    <TextBlock Text="整理グループ"/>
+    <TextBox Text="{Binding DisplayGroup,UpdateSourceTrigger=PropertyChanged}" MaxLength="100" AutomationProperties.Name="表示グループ" IsEnabled="{Binding CanConfigure}"/>
+    <TextBlock Text="表示名" Margin="0,3,0,0"/>
+    <TextBox Text="{Binding DisplayName,UpdateSourceTrigger=PropertyChanged}" MaxLength="100" AutomationProperties.Name="フィルター表示名" IsEnabled="{Binding CanConfigure}"/>
+    <WrapPanel Margin="0,5,0,0">
+     <Button Content="表示情報を保存" Command="{Binding SaveFilterPresentationCommand}" Padding="8,3" Margin="0,0,6,3"/>
+     <Button x:Name="DeleteManagedFilterButton" Content="未使用フィルターを削除" Command="{Binding DeleteManagedFilterCommand}" Padding="8,3" Margin="0,0,6,3"/>
+    </WrapPanel>
+    <TextBlock Text="{Binding ManagedFilterRow.DeleteHint}" TextWrapping="Wrap" FontSize="10"/>
    </StackPanel>
   </Expander>
   <TextBlock Grid.Row="4" Text="{Binding ReviewStatus}" TextWrapping="Wrap" Margin="0,6,0,0" MaxHeight="64" ToolTip="{Binding ReviewStatus}"/>

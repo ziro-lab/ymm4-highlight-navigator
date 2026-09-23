@@ -229,6 +229,17 @@ internal static class LearningSpecs
             var restored = filters.Rollback(Battle, 2); Check(restored.Revision == 1, "Restore prior active revision");
             Check(Directory.GetFiles(Path.Combine(store.Root, "filters", Battle.Key), "*.json").Length == 2, "History not deleted");
         });
+        await Pure("filter-remove-deactivates-but-keeps-history", () =>
+        {
+            var store = Store(); var filters = new FilterStore(store);
+            var one = filters.Apply(FilterAuthor.Create(Seed(store)));
+            var removed = filters.Remove(Battle, one.Revision);
+            Check(removed.Revision == 1 && filters.Read(Battle) == null && filters.ReadAll().IsEmpty, "Active head removed");
+            Check(Directory.GetFiles(Path.Combine(store.Root, "filters", Battle.Key), "*.json").Length == 1, "Immutable revision retained");
+            Reject(() => filters.Remove(Battle, one.Revision));
+            var next = filters.Apply(FilterAuthor.Create(FilterAuthor.Load(store, Battle)));
+            Check(next.Revision == 2 && next.ParentRevision == 0 && filters.Read(Battle)!.Revision == 2, "Recreate never overwrites retained history");
+        });
         await Pure("cancel-filter-publication", () =>
         {
             var store = Store(); var draft = FilterAuthor.Create(Seed(store)); var filters = new FilterStore(store);

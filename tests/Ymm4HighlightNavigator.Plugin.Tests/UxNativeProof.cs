@@ -61,6 +61,33 @@ internal static class UxNativeProof
         }
         await model.SaveReviewSetAsync(false);
         check("ux_save_retry_succeeds", store.Read().Revision == revision + 1 && model.ReviewSets.Any(s => s.Name == "保存再試行"));
+
+        var managementWorking = model.CurrentReviewConfiguration;
+        model.ManagedViewIntent = model.ViewIntents.Single(v => v.Set.Id == ReviewBuiltIns.Basic.Id);
+        model.OpenViewIntentManagerCommand.Execute(null);
+        var intentManager = Application.Current.Windows.Cast<Window>().Single(w => w.Title == "見たいものを整理");
+        check("ux_view_intent_manager_layout", intentManager.Content is ViewIntentManagerView
+            && Capture(new ViewIntentManagerView { DataContext = model }, output, "view-intent-manager", 420, 560,
+                ["ViewIntentManagementList", "DuplicateViewIntentButton", "ManagedViewIntentNameBox", "ManagedViewIntentClassificationBox", "SaveViewIntentMetadataButton"]));
+        intentManager.Close();
+        await model.DuplicateManagedViewIntentAsync();
+        var copiedIntent = model.ManagedViewIntent?.Set ?? throw new InvalidOperationException("Duplicated view intent was not selected.");
+        check("ux_view_intent_duplicate_preserves_working", !copiedIntent.IsBuiltIn
+            && copiedIntent.ClassificationPath.SequenceEqual(new[] { "汎用" })
+            && copiedIntent.Configuration.EquivalentTo(ReviewBuiltIns.Basic.Configuration)
+            && model.CurrentReviewConfiguration.EquivalentTo(managementWorking));
+        string copiedId = copiedIntent.Id;
+        model.ManagedViewIntentName = "ゲーム基本";
+        model.ManagedViewIntentClassification = "動画 > ゲーム";
+        await model.SaveManagedViewIntentMetadataAsync();
+        var renamedIntent = model.ReviewSets.Single(s => s.Id == copiedId);
+        check("ux_view_intent_rename_move_preserves_config", renamedIntent.DisplayPath == "動画 > ゲーム > ゲーム基本"
+            && renamedIntent.Configuration.EquivalentTo(copiedIntent.Configuration)
+            && model.CurrentReviewConfiguration.EquivalentTo(managementWorking));
+        await model.DeleteManagedViewIntentAsync();
+        check("ux_view_intent_delete_preserves_working", !model.ReviewSets.Any(s => s.Id == copiedId)
+            && model.CurrentReviewConfiguration.EquivalentTo(managementWorking));
+
         var unresolved = new ReviewSet("user.missingfixture", "参照切れ検証", new ReviewConfiguration([new("missing.native", true)], 1));
         model.ApplyReviewSet(unresolved); await model.RequeryAsync();
         check("ux_missing_reference_visible_retained", model.HasMissingFilters && model.CurrentReviewConfiguration.IsEnabled("missing.native") && model.MissingFilterSummary.Contains("有効 1件", StringComparison.Ordinal) && model.Candidates.Count == 0);
@@ -73,13 +100,18 @@ internal static class UxNativeProof
         model.FilterSearch = "表示名だけ";
         check("ux_filter_search_uses_display_metadata", model.FilterLibrary.Cast<object>().OfType<ProfileChoice>().Count() == 1);
         model.FilterSearch = "";
+        model.ManagedFilterRow = model.FilterManagementRows.Single(r => r.FilterId == chosen.Profile.Id);
+        check("ux_filter_usage_metadata", model.ManagedFilterRow.SavedUsageCount > 0
+            && !model.ManagedFilterRow.IsUnused && !model.ManagedFilterRow.CanDelete
+            && model.ManagedFilterRow.UsageDestinationsText.Contains("基本", StringComparison.Ordinal));
         check("ux_active_filters_track_toggle", model.ActiveFilters.Count == model.Profiles.Count(p => p.Enabled));
         chosen.RemoveCommand.Execute(null); await model.RequeryAsync();
         check("ux_chip_off_is_not_delete", !chosen.Enabled && model.Profiles.Contains(chosen) && !model.ActiveFilters.Contains(chosen));
         chosen.Enabled = true; await model.RequeryAsync();
         model.OpenFilterManagerCommand.Execute(null);
         var manager = Application.Current.Windows.Cast<Window>().Single(w => w.Title == "フィルターを整理");
-        check("ux_manager_surface_and_narrow_layout", manager.Content is FilterManagerView && Capture(new FilterManagerView { DataContext = model }, output, "filter-manager", 360, 480, ["FilterSearchBox", "FilterLibraryList", "ManagerDataStoragePath", "ManagerOpenDataFolderButton"]));
+        check("ux_manager_surface_and_narrow_layout", manager.Content is FilterManagerView && Capture(new FilterManagerView { DataContext = model }, output, "filter-manager", 380, 540,
+            ["FilterSearchBox", "FilterUsageModeSelector", "FilterLibraryList", "FilterUsageDestinations", "DeleteManagedFilterButton", "ManagerDataStoragePath", "ManagerOpenDataFolderButton"]));
         manager.Close();
         model.OpenLearningCommand.Execute(null);
         var authoring = Application.Current.Windows.Cast<Window>().Single(w => w.Title == "動画からフィルターを作る");
@@ -118,6 +150,30 @@ internal static class UxNativeProof
         keys.Single(k => k.Key == Key.Down).Command.Execute(null);
         check("ux_bound_navigation_uses_existing_jump", model.Selected != null && timeline.CurrentFrame == model.Selected.Frame);
         check("ux_settings_never_redecode_or_edit_items", model.AnalysisBackendCallCount == decodeCalls && Signature() == before);
+
+        var learnedRow = model.FilterManagementRows.Single(r => r.Choice.Learned is { Revision: > 0 });
+        model.FilterUsageMode = "未使用";
+        var unusedVisible = model.VisibleFilterManagementRows.ToArray();
+        model.FilterUsageMode = "使用中";
+        var usedVisible = model.VisibleFilterManagementRows.ToArray();
+        model.FilterUsageMode = "すべて";
+        check("ux_filter_usage_filtering", learnedRow.IsUnused && learnedRow.CanDelete
+            && unusedVisible.Any(r => r.FilterId == learnedRow.FilterId)
+            && !usedVisible.Any(r => r.FilterId == learnedRow.FilterId)
+            && usedVisible.Any(r => r.FilterId == "seed.visual"));
+
+        var learnedFilter = learnedRow.Choice.Learned!;
+        var corpus = NavigatorModel.UserCorpus();
+        string historyDir = Path.Combine(corpus.Root, "filters", learnedFilter.Label.Key);
+        int historyBefore = Directory.GetFiles(historyDir, "*.json").Length;
+        model.ManagedFilterRow = learnedRow;
+        await model.DeleteManagedFilterAsync();
+        int historyAfter = Directory.GetFiles(historyDir, "*.json").Length;
+        check("ux_unused_learned_filter_safe_delete", !model.Profiles.Any(p => p.Profile.Id == learnedRow.FilterId)
+            && new FilterStore(corpus).Read(learnedFilter.Label) == null
+            && historyBefore > 0 && historyAfter == historyBefore
+            && model.AnalysisBackendCallCount == decodeCalls && Signature() == before);
+
         File.WriteAllText(Path.Combine(output, "ux-summary.json"), JsonSerializer.Serialize(new
         {
             schema = "navigator.ux-native.v1", checkout = Environment.GetEnvironmentVariable("GITHUB_SHA"), completed = true,
