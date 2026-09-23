@@ -61,11 +61,14 @@ public static class NavigatorStorage
         return result;
     }
 
-    public static void OpenDataDirectory()
+    public static void OpenDataDirectory() => OpenDirectory(DataDirectory);
+
+    public static void OpenDirectory(string path)
     {
-        Directory.CreateDirectory(DataDirectory);
-        RejectLinks(DataDirectory);
-        Process.Start(new ProcessStartInfo { FileName = DataDirectory, UseShellExecute = true });
+        string target = Path.GetFullPath(path);
+        Directory.CreateDirectory(target);
+        RejectLinks(target);
+        Process.Start(new ProcessStartInfo { FileName = target, UseShellExecute = true });
     }
 
     private static NavigatorStorageResolution PrepareDirectory(string portableRoot, string legacyRoot, Action<string> validate)
