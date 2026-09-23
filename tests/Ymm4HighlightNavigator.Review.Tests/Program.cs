@@ -40,6 +40,21 @@ Test("settings-roundtrip-separate-from-learning", () => { var s = Store(); var r
 Test("view-intent-classification-roundtrip-variable-depth", () => { var s = Store(); var saved = s.SaveNew("X4", ["動画", "ゲーム"], A(), 0); var loaded = new ReviewSetStore(s.Root).Read().Sets.Single(); Assert(loaded.ClassificationPath.SequenceEqual(new[] { "動画", "ゲーム" }) && loaded.DisplayPath == "動画 > ゲーム > X4" && saved.Sets.Single().DisplayPath == loaded.DisplayPath); });
 Test("view-intent-same-name-different-classification", () => { var s = Store(); var a = s.SaveNew("基本", ["ゲーム"], A(), 0); var b = s.SaveNew("基本", ["配信"], A(), a.Revision); Assert(b.Sets.Length == 2 && b.Sets.Select(x => x.DisplayPath).Order().SequenceEqual(new[] { "ゲーム > 基本", "配信 > 基本" }.Order())); Throws(() => s.SaveNew("基本", ["ゲーム"], A(), b.Revision)); });
 Test("view-intent-classification-validation", () => { var s = Store(); Throws(() => s.SaveNew("X4", [""], A(), 0)); Throws(() => s.SaveNew("X4", Enumerable.Range(0, 9).Select(i => "L" + i).ToImmutableArray(), A(), 0)); });
+Test("view-intent-legacy-no-classification-compatible", () =>
+{
+    var s = Store();
+    WriteEnvelope(s, new
+    {
+        schema = 1,
+        revision = 1L,
+        sets = new[] { new { id = "user.legacy", name = "旧保存", configuration = A().Normalize() } },
+        presentations = Array.Empty<ReviewFilterPresentation>()
+    });
+    var legacy = s.Read().Sets.Single();
+    Assert(legacy.Id == "user.legacy" && legacy.Name == "旧保存"
+        && legacy.ClassificationPath.IsEmpty && legacy.DisplayPath == "旧保存"
+        && legacy.Configuration.EquivalentTo(A()));
+});
 Test("duplicate-set-uses-new-id", () => { var s = Store(); var a = s.SaveNew("A", ["ゲーム"], A(), 0); var b = s.SaveNew("B", a.Sets[0].ClassificationPath, a.Sets[0].Configuration, a.Revision); Assert(b.Sets.Length == 2 && b.Sets[0].Id != b.Sets[1].Id && b.Sets[0].Configuration.EquivalentTo(b.Sets[1].Configuration) && b.Sets.All(x => x.ClassificationPath.SequenceEqual(new[] { "ゲーム" }))); });
 Test("explicit-overwrite-keeps-id", () => { var s = Store(); var a = s.SaveNew("A", A(), 0); var b = s.SaveExisting(a.Sets[0] with { Name = "B", Configuration = A() with { Sensitivity = 2 } }, 1); Assert(b.Sets.Length == 1 && b.Sets[0].Id == a.Sets[0].Id && b.Sets[0].Name == "B" && b.Sets[0].Configuration.Sensitivity == 2); });
 Test("builtin-cannot-be-overwritten", () => { var s = Store(); Throws(() => s.SaveExisting(ReviewBuiltIns.Basic, 0)); Assert(s.Read().Revision == 0); });
