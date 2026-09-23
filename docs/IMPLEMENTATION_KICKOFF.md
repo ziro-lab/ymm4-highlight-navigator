@@ -29,20 +29,31 @@
 
 Generic Filter Pack、W4-M、W6、画像/音声検索、学習Filter自体の複製/完全削除は未追加。基盤sliceは既存3 seed Filterと既存学習Filterで検証した。
 
-## Next — UX-2 / UX-2.5 hands-on before generic expansion
+## Next — UX-2 information architecture correction + cognitive walkthrough
 
-実装済みのモデルや保存機構を再設計せず、日常操作で破綻する点を確認する。
+既存の保存・検出・ReviewSet内部モデルを壊さず、ユーザー向けの日常概念を **「見たいもの」** へ寄せる。実装前の具体仕様は `docs/UI_UX_GENERIC_FILTER_PLAN.md` の2026-09-23 cognitive walkthroughをAuthorityとする。
 
 ```text
-対象固定
-→ 確認セット選択
-→ Filter ON/OFF・検索
-→ 感度変更
-→ 候補理由確認
+解析対象を固定
+→ 見たいものを直接選択
+   （分類は ゲーム > X4 のようにpicker内で表示）
+→ 使用中Filterを確認 / 必要なら即ON-OFF
+→ 解析
+→ 候補理由を確認
 → 前/次/一覧/Jump
-→ 新規セット保存・上書き・切替前に戻す
-→ フィルター試用・保存・試用終了
+→ Filter / Sensitivityを調整
+→ 変更ありを認識
+→ 必要なら保存 / 別名保存
 ```
+
+実装上の注意:
+
+- 内部 `ReviewSet` は残す。UIラベルだけの置換ではなく、分類path・要約・modified stateを含む操作モデルを整える。
+- 内部 `Target` は解析対象の意味を維持し、「見たいもの」に流用しない。
+- 既存Filter presentation `Group` と、「見たいもの」のジャンル/分類pathを同じフィールドにしない。
+- Main ReviewのFilter ON/OFFと、Filter assetのrename/duplicate/delete/使用先確認を分離する。
+- 「フィルターを選ぶ・整理」の一画面混在は解消候補。quick chooserと管理surfaceを分ける。
+- 基本の「見たいもの」はbuilt-in ReviewSetとしてstarter contentに使い、新しいPreset概念を増やさない。
 
 確認点:
 
