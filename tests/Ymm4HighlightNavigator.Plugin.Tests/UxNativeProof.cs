@@ -72,7 +72,7 @@ internal static class UxNativeProof
         chosen.Enabled = true; await model.RequeryAsync();
         model.OpenFilterManagerCommand.Execute(null);
         var manager = Application.Current.Windows.Cast<Window>().Single(w => w.Title == "フィルターの選択・整理");
-        check("ux_manager_surface_and_narrow_layout", manager.Content is FilterManagerView && Capture(new FilterManagerView { DataContext = model }, output, "filter-manager", 360, 480, ["FilterSearchBox", "FilterLibraryList"]));
+        check("ux_manager_surface_and_narrow_layout", manager.Content is FilterManagerView && Capture(new FilterManagerView { DataContext = model }, output, "filter-manager", 360, 480, ["FilterSearchBox", "FilterLibraryList", "ManagerDataStoragePath", "ManagerOpenDataFolderButton"]));
         manager.Close();
         model.OpenLearningCommand.Execute(null);
         var authoring = Application.Current.Windows.Cast<Window>().Single(w => w.Title == "動画からフィルターを作る");
@@ -145,7 +145,7 @@ internal static class UxNativeProof
         await learning.CreateDraftAsync(); var beforeRollback = learning.Draft; await learning.RollbackAsync();
         check("ux_rollback_keeps_unsaved_draft_stale", ReferenceEquals(beforeRollback, learning.Draft) && !learning.CanUseDraft && !learning.CanRollback && new FilterStore(isolated).Read(label)!.Revision == 1);
         var learningView = new LearningView { DataContext = learning };
-        Capture(learningView, output, "ux-authoring", 400, 640, ["LearningResults", "SaveFilterButton"]);
+        Capture(learningView, output, "ux-authoring", 400, 640, ["LearningResults", "SaveFilterButton", "DataStoragePath", "OpenDataFolderButton"]);
         var inputs = (FrameworkElement)learningView.FindName("ClassificationInputs");
         await learning.RefreshLabelsAsync(); learning.SelectedLabel = learning.KnownLabels.Single(l => l.Label == label); await learning.RefreshAvailabilityAsync();
         await learningView.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
