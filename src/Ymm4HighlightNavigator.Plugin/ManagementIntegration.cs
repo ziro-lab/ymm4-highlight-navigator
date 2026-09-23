@@ -1,8 +1,6 @@
 using System.Collections.Immutable;
 using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.Windows;
-using System.Windows.Data;
 using System.Windows.Input;
 using Ymm4HighlightNavigator.Core;
 
@@ -52,10 +50,10 @@ public sealed partial class NavigatorModel
     private ViewIntentChoice? managedViewIntent;
     private string managedViewIntentName = "", managedViewIntentClassification = "";
     private FilterManagementRow? managedFilterRow;
-    private ListCollectionView? filterManagementLibrary;
     private string filterUsageMode = "すべて";
 
     public ObservableCollection<FilterManagementRow> FilterManagementRows { get; } = [];
+    public ObservableCollection<FilterManagementRow> VisibleFilterManagementRows { get; } = [];
     public ObservableCollection<string> FilterUsageModes { get; } = ["すべて", "使用中", "未使用"];
     public ObservableCollection<string> ViewIntentClassificationSuggestions { get; } = [];
 
@@ -123,23 +121,7 @@ public sealed partial class NavigatorModel
             if (filterUsageMode == value) return;
             filterUsageMode = value;
             Changed();
-            filterManagementLibrary?.Refresh();
-        }
-    }
-
-    public ICollectionView FilterManagementLibrary
-    {
-        get
-        {
-            if (filterManagementLibrary != null) return filterManagementLibrary;
-            filterManagementLibrary = new ListCollectionView(FilterManagementRows)
-            {
-                Filter = o => o is FilterManagementRow row && FilterManagementVisible(row)
-            };
-            filterManagementLibrary.GroupDescriptions.Add(new PropertyGroupDescription(nameof(FilterManagementRow.Group)));
-            filterManagementLibrary.SortDescriptions.Add(new(nameof(FilterManagementRow.Group), ListSortDirection.Ascending));
-            filterManagementLibrary.SortDescriptions.Add(new(nameof(FilterManagementRow.Name), ListSortDirection.Ascending));
-            return filterManagementLibrary;
+            RefreshVisibleFilterManagementRows();
         }
     }
 
@@ -201,6 +183,16 @@ public sealed partial class NavigatorModel
         return search && usage;
     }
 
+    private void RefreshVisibleFilterManagementRows()
+    {
+        var next = FilterManagementRows.Where(FilterManagementVisible)
+            .OrderBy(r => r.Group, StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(r => r.Name, StringComparer.CurrentCultureIgnoreCase)
+            .ToArray();
+        VisibleFilterManagementRows.Clear();
+        foreach (var row in next) VisibleFilterManagementRows.Add(row);
+    }
+
     private void RefreshManagementSurfaces()
     {
         string? filterId = managedFilterRow?.FilterId;
@@ -215,7 +207,7 @@ public sealed partial class NavigatorModel
             row.ApplyUsage(destinations, working);
             FilterManagementRows.Add(row);
         }
-        filterManagementLibrary?.Refresh();
+        RefreshVisibleFilterManagementRows();
         managedFilterRow = filterId == null ? null : FilterManagementRows.FirstOrDefault(r => r.FilterId == filterId);
         Changed(nameof(ManagedFilterRow));
         if (managedFilterRow != null) ManagedFilter = managedFilterRow.Choice;
