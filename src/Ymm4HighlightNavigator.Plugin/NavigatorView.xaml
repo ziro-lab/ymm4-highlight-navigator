@@ -14,11 +14,11 @@
    <TextBlock Text="解析対象" FontWeight="SemiBold" Margin="0,0,0,3"/>
    <StackPanel x:Name="NoTargetHint" Visibility="{Binding HasNoTargets,Converter={StaticResource BoolVisibility}}">
     <TextBlock Text="まだ確認する動画がありません。YMM4で確認したい動画を選択してください。" TextWrapping="Wrap" Margin="0,0,0,5"/>
-    <Button x:Name="CaptureButton" Content="{Binding CaptureActionText}" Command="{Binding CaptureCommand}" Padding="8,4" HorizontalAlignment="Left" IsEnabled="{Binding CanConfigure}"/>
+    <Button x:Name="EmptyCaptureButton" Content="{Binding CaptureActionText}" Command="{Binding CaptureCommand}" Padding="8,4" HorizontalAlignment="Left" IsEnabled="{Binding CanConfigure}"/>
    </StackPanel>
    <Grid Visibility="{Binding HasTargets,Converter={StaticResource BoolVisibility}}">
     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-    <Button x:Name="RecaptureButton" Content="{Binding CaptureActionText}" Command="{Binding CaptureCommand}" Padding="7,3" IsEnabled="{Binding CanConfigure}"/>
+    <Button x:Name="CaptureButton" Content="{Binding CaptureActionText}" Command="{Binding CaptureCommand}" Padding="7,3" IsEnabled="{Binding CanConfigure}"/>
     <TextBlock Grid.Column="1" Text="{Binding TargetSummary}" ToolTip="{Binding TargetSummary}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="8,0,0,0"/>
    </Grid>
   </StackPanel>
