@@ -111,6 +111,8 @@ Release proofでは:
 - archive entry path allowlist;
 - flat-root DLLやversion-named internal rootをreject;
 - packaged DLL hash consistency;
+- user-owned `Data/` をpackage payloadへ含めないこと;
+- plugin-local `Data/` のupdate保持について採用済みLab evidenceと矛盾しないこと;
 - old Candidateのbad layoutがあればcleanup/migration guidance;
 
 を検証する。
@@ -122,9 +124,12 @@ Ymm4HighlightNavigator-vX.Y.Z.ymme
 └─ Ymm4HighlightNavigator/
    ├─ Ymm4HighlightNavigator.dll
    └─ allowed dependencies...
+
+# install後にユーザー側で生成される。packageへは入れない
+<YMM4>/user/plugin/Ymm4HighlightNavigator/Data/
 ```
 
-Exact package shapeは実装時にcurrent YMM4 behaviorをLab evidenceで確認してから固定する。
+Exact package shapeは実装時にcurrent YMM4 behaviorをLab evidenceで確認してから固定する。Lab PR #85 / run `35701097895` ではYMM4 4.55.1.1 Liteの実 `.ymme` v1→v2更新でplugin-local `Data/` の未同梱ファイル保持を観測済み。ただしNavigator自身の通常package install/reinstall acceptanceや将来YMM4版まで証明したものではない。
 
 ## Evidence must not certify itself
 
