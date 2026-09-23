@@ -121,5 +121,8 @@
   "ux_view_intent_delete_preserves_working",
   "ux_filter_usage_metadata",
   "ux_filter_usage_filtering",
-  "ux_unused_learned_filter_safe_delete"
+  "ux_unused_learned_filter_safe_delete",
+  "ux_generic_basic_catalog",
+  "ux_legacy_seed_compatibility_off_default",
+  "ux_generic_real_fixture_behavior"
 ]
