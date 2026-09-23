@@ -74,7 +74,7 @@ public static class GenericFilterEvaluator
         {
             GenericFilterKind.LargeSceneChange => SceneChangeScore(x) >= .18 / sensitivity,
             GenericFilterKind.DarkFade => DarkFade(table, candidate, sensitivity),
-            GenericFilterKind.QuietToActivity => QuietToActivity(candidate, sensitivity),
+            GenericFilterKind.QuietToActivity => QuietToActivity(table, candidate, sensitivity),
             _ => false
         };
     }
@@ -98,26 +98,30 @@ public static class GenericFilterEvaluator
             && candidate.Strength >= minimumStrength;
     }
 
-    private static bool QuietToActivity(TransitionCandidate candidate, double sensitivity)
+    private static bool QuietToActivity(FeatureTable table, TransitionCandidate candidate, double sensitivity)
     {
         if (candidate.Before.End - candidate.Before.Start < .5 || candidate.After.End - candidate.After.Start < .5)
             return false;
-        double before = candidate.Signature.Visual[0];
-        double after = candidate.Signature.Visual[1];
-        double rise = after - before;
-        return before <= .04 * sensitivity
-            && after >= .06 / sensitivity
+        float? before = Average(table, candidate.Before, row => row.Delta);
+        float? after = Average(table, candidate.After, row => row.Delta);
+        if (!before.HasValue || !after.HasValue) return false;
+        double rise = after.Value - before.Value;
+        return before.Value <= .04 * sensitivity
+            && after.Value >= .06 / sensitivity
             && rise >= .035 / sensitivity;
     }
 
     private static float? AverageLuma(FeatureTable table, TimeRange range)
+        => Average(table, range, row => row.Luma);
+
+    private static float? Average(FeatureTable table, TimeRange range, Func<VideoFeature, float> selector)
     {
         float sum = 0;
         int count = 0;
         foreach (var row in table.Pack.Video)
         {
             if (row.TimeSeconds + Epsilon < range.Start || row.TimeSeconds >= range.End - Epsilon) continue;
-            sum += row.Luma;
+            sum += selector(row);
             count++;
         }
         return count == 0 ? null : sum / count;
