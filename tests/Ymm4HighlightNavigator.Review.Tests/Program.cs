@@ -56,6 +56,39 @@ Test("view-intent-legacy-no-classification-compatible", () =>
         && legacy.Configuration.EquivalentTo(A()));
 });
 Test("duplicate-set-uses-new-id", () => { var s = Store(); var a = s.SaveNew("A", ["ゲーム"], A(), 0); var b = s.SaveNew("B", a.Sets[0].ClassificationPath, a.Sets[0].Configuration, a.Revision); Assert(b.Sets.Length == 2 && b.Sets[0].Id != b.Sets[1].Id && b.Sets[0].Configuration.EquivalentTo(b.Sets[1].Configuration) && b.Sets.All(x => x.ClassificationPath.SequenceEqual(new[] { "ゲーム" }))); });
+Test("view-intent-rename-move-keeps-id-and-configuration", () =>
+{
+    var s = Store();
+    var a = s.SaveNew("X4", ["ゲーム"], A(), 0);
+    var original = a.Sets.Single();
+    var b = s.SaveExisting(original with { Name = "X4 戦闘重点", ClassificationPath = ["動画", "ゲーム"] }, a.Revision);
+    var moved = b.Sets.Single();
+    Assert(moved.Id == original.Id && moved.DisplayPath == "動画 > ゲーム > X4 戦闘重点"
+        && moved.Configuration.EquivalentTo(original.Configuration));
+});
+Test("view-intent-delete-user-and-reject-built-in", () =>
+{
+    var s = Store();
+    var a = s.SaveNew("消す", ["ゲーム"], A(), 0);
+    var id = a.Sets.Single().Id;
+    var b = s.Delete(id, a.Revision);
+    Assert(b.Revision == 2 && b.Sets.IsEmpty);
+    Throws(() => s.Delete(id, b.Revision));
+    Throws(() => s.Delete(ReviewBuiltIns.Basic.Id, b.Revision));
+    Assert(s.Read().Revision == b.Revision && s.Read().Sets.IsEmpty);
+});
+Test("view-intent-workspace-metadata-refresh-and-delete-preserve-working", () =>
+{
+    var original = Saved();
+    var w = new ReviewWorkspace(original);
+    var changed = A() with { Sensitivity = 1.5 };
+    w.Change(changed);
+    var renamed = original with { Name = "新名", ClassificationPath = ["動画", "ゲーム"] };
+    Assert(w.RefreshAppliedMetadata(renamed) && w.AppliedSet!.DisplayPath == "動画 > ゲーム > 新名"
+        && w.Current.EquivalentTo(changed) && w.IsModified);
+    Assert(w.ForgetSaved(original.Id) && w.AppliedSet == null && w.Current.EquivalentTo(changed) && w.IsModified);
+    Assert(!w.ForgetSaved(original.Id));
+});
 Test("explicit-overwrite-keeps-id", () => { var s = Store(); var a = s.SaveNew("A", A(), 0); var b = s.SaveExisting(a.Sets[0] with { Name = "B", Configuration = A() with { Sensitivity = 2 } }, 1); Assert(b.Sets.Length == 1 && b.Sets[0].Id == a.Sets[0].Id && b.Sets[0].Name == "B" && b.Sets[0].Configuration.Sensitivity == 2); });
 Test("builtin-cannot-be-overwritten", () => { var s = Store(); Throws(() => s.SaveExisting(ReviewBuiltIns.Basic, 0)); Assert(s.Read().Revision == 0); });
 Test("duplicate-name-rejected-with-old-data-intact", () => { var s = Store(); s.SaveNew("Work", A(), 0); Throws(() => s.SaveNew("work", A(), 1)); Assert(s.Read().Revision == 1 && s.Read().Sets.Length == 1); });
