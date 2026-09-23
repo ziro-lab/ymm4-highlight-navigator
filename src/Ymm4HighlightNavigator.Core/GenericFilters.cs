@@ -28,11 +28,11 @@ public sealed record GenericFilter(string Id, string Name, GenericFilterKind Kin
 public static class GenericFilterCatalog
 {
     public static GenericFilter LargeSceneChange { get; } =
-        new("generic.scene-change", "大きな場面切替", GenericFilterKind.LargeSceneChange, 2, 2).Normalize();
+        new GenericFilter("generic.scene-change", "大きな場面切替", GenericFilterKind.LargeSceneChange, 2, 2).Normalize();
     public static GenericFilter DarkFade { get; } =
-        new("generic.dark-fade", "暗転 / フェード", GenericFilterKind.DarkFade, 3, 2).Normalize();
+        new GenericFilter("generic.dark-fade", "暗転 / フェード", GenericFilterKind.DarkFade, 3, 2).Normalize();
     public static GenericFilter QuietToActivity { get; } =
-        new("generic.quiet-to-active", "静穏 → 高活動", GenericFilterKind.QuietToActivity, 3, 2).Normalize();
+        new GenericFilter("generic.quiet-to-active", "静穏 → 高活動", GenericFilterKind.QuietToActivity, 3, 2).Normalize();
 
     public static ImmutableArray<GenericFilter> Basic { get; } =
         [LargeSceneChange, DarkFade, QuietToActivity];
