@@ -38,12 +38,21 @@ public sealed record ReviewConfiguration(ImmutableArray<ReviewFilterState> Filte
 
 public sealed record ReviewSet(string Id, string Name, ReviewConfiguration Configuration)
 {
+    public ImmutableArray<string> ClassificationPath { get; init; } = [];
     [JsonIgnore] public bool IsBuiltIn => Id.StartsWith("builtin.", StringComparison.Ordinal);
+    [JsonIgnore] public string DisplayPath => ClassificationPath.IsDefaultOrEmpty
+        ? Name : string.Join(" > ", ClassificationPath.Append(Name));
+
     public ReviewSet Normalize()
     {
         if (!ReviewNames.ValidId(Id) || !(Id.StartsWith("user.", StringComparison.Ordinal) || IsBuiltIn))
-            throw new InvalidDataException("確認セットの識別情報が不正です。");
-        return this with { Name = ReviewNames.Clean(Name), Configuration = Configuration.Normalize() };
+            throw new InvalidDataException("見たいものの識別情報が不正です。");
+        return this with
+        {
+            Name = ReviewNames.Clean(Name),
+            ClassificationPath = ReviewNames.CleanPath(ClassificationPath),
+            Configuration = Configuration.Normalize()
+        };
     }
 }
 
@@ -59,8 +68,9 @@ public sealed record ReviewFilterPresentation(string FilterId, string Group, str
 
 public static class ReviewBuiltIns
 {
-    public static ReviewSet Basic { get; } = new("builtin.basic", "基本（既存フィルター）",
-        new ReviewConfiguration([new("seed.visual", true), new("seed.audio", true), new("seed.brightness", true)], 1).Normalize());
+    public static ReviewSet Basic { get; } = new("builtin.basic", "基本",
+        new ReviewConfiguration([new("seed.visual", true), new("seed.audio", true), new("seed.brightness", true)], 1).Normalize())
+    { ClassificationPath = ["汎用"] };
 }
 
 /// <summary>Saved settings and working choices are independent; applying a set has one explicit restore.</summary>
@@ -99,10 +109,18 @@ internal static class ReviewNames
 {
     internal static bool ValidId(string? id) => id is { Length: > 0 and <= 160 }
         && id.All(c => c is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or >= '0' and <= '9' or '.' or '_' or '-');
+
     internal static string Clean(string text)
     {
         if (string.IsNullOrWhiteSpace(text) || text.Length > 100 || text.Any(char.IsControl))
-            throw new ArgumentException("名前とグループは100文字以内で入力してください。");
+            throw new ArgumentException("名前と分類は100文字以内で入力してください。");
         return text.Trim().Normalize(System.Text.NormalizationForm.FormC);
+    }
+
+    internal static ImmutableArray<string> CleanPath(ImmutableArray<string> path)
+    {
+        if (path.IsDefaultOrEmpty) return [];
+        if (path.Length > 8) throw new ArgumentException("分類階層は8段以内にしてください。");
+        return path.Select(Clean).ToImmutableArray();
     }
 }
