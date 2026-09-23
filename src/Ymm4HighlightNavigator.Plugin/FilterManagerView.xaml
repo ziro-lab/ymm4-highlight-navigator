@@ -14,18 +14,13 @@
    <ComboBox x:Name="FilterUsageModeSelector" Grid.Column="1" ItemsSource="{Binding FilterUsageModes}" SelectedItem="{Binding FilterUsageMode}"
     AutomationProperties.Name="フィルター使用状況" MinWidth="82" Margin="6,0,0,0"/>
   </Grid>
-  <ListBox Grid.Row="2" x:Name="FilterLibraryList" ItemsSource="{Binding FilterManagementLibrary}" SelectedItem="{Binding ManagedFilterRow}" IsEnabled="{Binding CanConfigure}"
+  <ListBox Grid.Row="2" x:Name="FilterLibraryList" ItemsSource="{Binding VisibleFilterManagementRows}" SelectedItem="{Binding ManagedFilterRow}" IsEnabled="{Binding CanConfigure}"
    ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.IsVirtualizingWhenGrouping="True" VirtualizingPanel.VirtualizationMode="Recycling">
-   <ListBox.GroupStyle><GroupStyle>
-    <GroupStyle.ContainerStyle><Style TargetType="{x:Type GroupItem}">
-     <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="{x:Type GroupItem}">
-      <Expander IsExpanded="True" Margin="0,3" Header="{Binding Name}"><ItemsPresenter/></Expander>
-     </ControlTemplate></Setter.Value></Setter>
-    </Style></GroupStyle.ContainerStyle>
-   </GroupStyle></ListBox.GroupStyle>
    <ListBox.ItemTemplate><DataTemplate>
     <StackPanel Margin="4,4">
-     <TextBlock Text="{Binding Name}" TextWrapping="Wrap" FontWeight="SemiBold"/>
+     <TextBlock FontWeight="SemiBold" TextWrapping="Wrap">
+      <Run Text="{Binding Group}"/><Run Text=" > "/><Run Text="{Binding Name}"/>
+     </TextBlock>
      <TextBlock FontSize="11">
       <Run Text="{Binding Kind}"/><Run Text=" · "/><Run Text="{Binding UsageSummary}"/>
      </TextBlock>
