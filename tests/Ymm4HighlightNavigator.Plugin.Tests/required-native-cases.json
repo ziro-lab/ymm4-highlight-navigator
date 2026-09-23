@@ -114,5 +114,12 @@
   "ux_view_intent_modified_state",
   "ux_view_intent_save_inherits_classification",
   "ux_quick_filter_disclosure_layout",
-  "ux_empty_state_next_action"
+  "ux_empty_state_next_action",
+  "ux_view_intent_manager_layout",
+  "ux_view_intent_duplicate_preserves_working",
+  "ux_view_intent_rename_move_preserves_config",
+  "ux_view_intent_delete_preserves_working",
+  "ux_filter_usage_metadata",
+  "ux_filter_usage_filtering",
+  "ux_unused_learned_filter_safe_delete"
 ]

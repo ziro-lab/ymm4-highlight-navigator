@@ -205,7 +205,7 @@ internal static class Proof
             Point p = control.TranslatePoint(new Point(), narrow);
             return p.X >= 0 && p.Y >= 0 && p.X + control.ActualWidth <= narrow.ActualWidth + .5 && p.Y + control.ActualHeight <= narrow.ActualHeight + .5;
         }
-        Check("narrow_primary_controls_contained", new[] { "CaptureButton", "ViewIntentSelector", "QuickFilterExpander", "AnalyzeButton", "PreviousButton", "NextButton", "CandidateList", "SensitivitySlider" }.All(Inside));
+        Check("narrow_primary_controls_contained", new[] { "CaptureButton", "ViewIntentSelector", "ViewIntentOrganizerButton", "QuickFilterExpander", "AnalyzeButton", "PreviousButton", "NextButton", "CandidateList", "SensitivitySlider" }.All(Inside));
         var bitmap = new RenderTargetBitmap(360, 480, 96, 96, PixelFormats.Pbgra32); bitmap.Render(captureSurface);
         using (var image = File.Create(Path.Combine(output, "navigator-360x480.png"))) { var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(bitmap)); png.Save(image); }
         File.WriteAllText(Path.Combine(output, "summary.json"), JsonSerializer.Serialize(new { fps, heartbeats, decodedRanges = model.DecodedRangeCount, candidates = model.Candidates.Count, counts = model.CandidateSummary, ffmpegPath = ffmpeg, ffprobePath = ffprobe, hostAssembly = typeof(VideoItem).Assembly.FullName, productHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(typeof(NavigatorPlugin).Assembly.Location))) }, new JsonSerializerOptions { WriteIndented = true }));
