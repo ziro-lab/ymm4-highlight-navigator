@@ -80,12 +80,7 @@ public sealed partial class NavigatorModel
     }
     public string DisplayGroup { get => displayGroup; set { displayGroup = value; Changed(); Commands(); } }
     public string DisplayName { get => displayName; set { displayName = value; Changed(); Commands(); } }
-    public static ReviewSetStore UserReviewSettings()
-    {
-        string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        if (string.IsNullOrWhiteSpace(appData)) throw new IOException("確認設定の保存先を取得できません。");
-        return new(Path.Combine(appData, "Ymm4HighlightNavigator", "Review"));
-    }
+    public static ReviewSetStore UserReviewSettings() => new(NavigatorStorage.PrepareReview().Path);
     private void InitializeReviewSettings()
     {
         ReviewSets.Add(ReviewBuiltIns.Basic); RefreshFilterViews(); NotifyReview();
