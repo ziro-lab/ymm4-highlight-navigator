@@ -20,7 +20,7 @@
 
 確認セットはFilter ID参照とON/OFF・Global Sensitivityだけを持つ。保存済みセットとworking stateは別で、新規保存（複製用途も含む）・明示上書き・切替前への1段復元を実装。標準セットは上書き不可。未解決参照は消さず警告し、保存先の破損/競合/失敗を空データとして上書きしない。
 
-新しい確認設定の保存先は `%LOCALAPPDATA%\Ymm4HighlightNavigator\Review\review-settings.json`。独立したrevision/writer lockを持ち、既存のchecksummed JSON publication primitiveを再利用する。FilterStoreやCorpusの正本は複製しない。
+確認設定の正本はportable root `<YMM4>/user/plugin/Ymm4HighlightNavigator/Data/Review/review-settings.json`。独立したrevision/writer lockを持ち、既存のchecksummed JSON publication primitiveを再利用する。FilterStoreやCorpusの正本は複製しない。旧 `%LOCALAPPDATA%\Ymm4HighlightNavigator\Review` はPortable側が未作成の場合だけ検証付き初回移行元として扱う。
 
 名前変更・Group変更は**表示名と整理用Groupのalias**としてFilter IDへ保存する。教材分類や既存Filterの保存keyを移動する処理ではない。セット参照と検出内容は変わらない。完全な教材分類のrename/migrationや学習Filter自体の複製・削除はこのsliceの完了範囲外。
 
@@ -87,7 +87,7 @@ W1-Rのcurrent tested source、run/job/artifact/hash、実装境界は [W1_R_CHE
 
 メイン画面の「動画からフィルターを作る」で実際の学習Windowを開き、教材の選択・取込・候補作成・試用・保存を行う。元動画は変更・削除しない。入力を取り込んだだけではActive Filterを変更しない。
 
-Corpus正本は `%LOCALAPPDATA%\Ymm4HighlightNavigator\Learning` のcatalog、primitive Pack、分類membership。動画のフルパスを永続identityにはせず、source hash・extractor・sampling・実際のsource rangeからsample keyを作る。同じ教材を再取込して二重学習しない。別のPositive分類は既存Packへのmembership追加で扱う。
+Corpus正本はportable root `<YMM4>/user/plugin/Ymm4HighlightNavigator/Data/Learning` のcatalog、primitive Pack、分類membership。旧 `%LOCALAPPDATA%\Ymm4HighlightNavigator\Learning` はPortable側が未作成の場合だけ検証付き初回移行元として扱い、移行後も旧側はbackupとして残す。Portable側が存在した後はlegacyへsilent fallbackしない。動画のフルパスを永続identityにはせず、source hash・extractor・sampling・実際のsource rangeからsample keyを作る。同じ教材を再取込して二重学習しない。別のPositive分類は既存Packへのmembership追加で扱う。
 
 取込はPack検証→保存→reload→catalog publicationを分け、writer lockで通常の同時書込を拒否する。完了済みファイルは保持し、後続の失敗/中止は別結果になる。既存catalogやPackの破損を「教材0件」として上書きしない。これは悪意ある外部writerや任意のfilesystem/power failureへの完全保証ではない。
 
