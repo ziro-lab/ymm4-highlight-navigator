@@ -90,7 +90,7 @@ internal static class PortableStorageNativeProof
     private static bool Rejected(Action action)
     {
         try { action(); return false; }
-        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or InvalidOperationException)
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or InvalidOperationException or System.Text.Json.JsonException)
         { return true; }
     }
 
