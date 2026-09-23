@@ -1,6 +1,36 @@
-# Implementation checkpoint — v0.4.2 UI/UX foundation candidate
+# Implementation checkpoint — v0.4.2 Portable Data candidate
 
 設計正本は **DESIGN v0.4.2**。この文書は実装・検証済みの範囲を記録する。初期学習経路が動いたことと、全機能完成・一般配布・実ゲーム品質は別のClaim。
+
+## Portable Data checkpoint — 2026-09-23 / PR #10
+
+**PR #9のUI/UX foundation上にPortable保存を追加し、Pure + 実YMM4製品統合がPASS。通常 .ymme配布・manual delete/reinstall・Hands-onは別Claim。**
+
+- Branch: `feature/v0.4.2-portable-data`; Draft PR #10。Baseは `feature/v0.4.2-ux-foundation` / PR #9。
+- Exact tested source: `ef21cca6db459a138f9390b906411c42425cc01c`。後続docs-only HEADをtested sourceへ読み替えない。
+- Native + pure run `35864132936`: 両job PASS。
+- Pure job `107191338941`: Core **27 cases / 11,147 assertions / 0 failures**、Rebinding **29 / 91 / 0**、Review settings **27 cases PASS**、Learning **35 cases / 60 assertions / 0 failures × 通常/stream-copyの2素材条件**。
+- Product-native job `107191814610`: 実YMM4 Lite **4.56.1.0** / .NET 10、**111独立IDすべてPASS**（PR #9の105 + Portable 6）。Product/proof buildはwarnings-as-errorsで **0 warnings / 0 errors**。
+- Native artifact `10752465378` / SHA256 `fdc9181f09c4901f414323f62bac52f1d287d23d366a7f45add2f94097eb4238`。
+- Pure artifact `10751765755` / SHA256 `8125cdb7ed73794d1e06dc3bda8648aec32a25747e2c30b07d64da4ea84532e1`。
+
+Navigator-owned user dataの正本をloaded Plugin root基準の `Data/` へ変更した。
+
+```text
+<YMM4>/user/plugin/Ymm4HighlightNavigator/Data/
+├─ Learning/  # Corpus / Pack / learned Filter revisions
+└─ Review/    # 確認セット / Filter表示情報
+```
+
+旧 `%LOCALAPPDATA%\Ymm4HighlightNavigator\Learning|Review` はPortable側が未作成の場合だけ初回移行元として扱う。移行前後で既存Storeを検証し、staging copyとSHA256 copy verification後にpublishする。旧データは削除せずbackupとして残す。Portable側が一度存在した後はlegacyをsilent fallbackに使わず、Portable破損を古いデータで隠さない。
+
+製品nativeでは plugin-local root、Learning/Reviewのlegacy移行、Portable authority優先、Portable破損時no fallback、legacy破損時no publicationの6 required IDを追加してPASS。学習400×640とFilter管理360×480の既存narrow viewport proofにも保存パスと「保存先を開く」controlを含め、領域内であることを確認した。
+
+最初のrun `35863689258` はPure全回帰と製品buildまでPASSした後、破損Portableを期待拒否するtest helperが `JsonException` を想定例外に含めておらずproof自身がFAILした。製品は意図どおり壊れたJSONを拒否していた。helperだけを修正し、required IDを削らず上記runで再実行してPASS。失敗runを成功証拠へ読み替えない。
+
+YMM4側のupdate保持はLab PR #85 / run `35701097895`（YMM4 Lite 4.55.1.1）で、実 `.ymme` v1→v2更新後もpackageに含まれないplugin-local `Data/` ファイルが保持されることを観測済み。ただしNavigatorの通常package install/reinstall、将来全YMM4版、manual plugin削除は未証明。将来のpackage payloadへuser `Data/` を含めない。
+
+自作Filter共有は今回未実装。ただし内部revision JSON / Corpusを公開交換形式に固定しない。将来はversionedな明示Export/Importとし、Runtimeに必要なPattern・algorithm/schema互換情報・表示metadataだけを持たせる。教材動画、Corpus、local revision history、Review sets、`SupportSampleIds`等の学習provenanceは既定で含めない。
 
 ## UI/UX foundation checkpoint — 2026-09-22 / PR #9
 
@@ -72,7 +102,8 @@ W1-Rのcurrent tested source、run/job/artifact/hash、実装境界は [W1_R_CHE
 
 | 領域 | 実装と検証の範囲 |
 |---|---|
-| UI/UX foundation | 確認セット/作業保全/3 surface/local keyboard pathを実装。上記native105 PASS、Hands-on未受入 |
+| Portable Data | Plugin-local `Data/Learning|Review`、legacy移行、保存先表示/openを実装。native111 PASS、通常package/reinstallはOPEN |
+| UI/UX foundation | 確認セット/作業保全/3 surface/local keyboard pathを実装。PR #9 native105 PASS、Hands-on未受入 |
 | W1-R | Source anchor、安定順、known-lineage優先、一意partition再bind、個別Unavailable、current-map Jumpを実装。検証結果は上記checkpoint参照 |
 | W1 / W2 / W4 | 既存Target/Projection、CPU特徴、Pack、複数フィルターReviewを維持 |
 | W3-A | 普通の動画/直下フォルダーの非破壊batch取込、重複検出、Positive membership、登録transactionを実装 |
