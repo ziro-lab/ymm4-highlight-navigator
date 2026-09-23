@@ -97,7 +97,7 @@ memo ClipはCandidate `AnchorSourceTime` から開始し、前余白を付けな
 Navigator自身が永続化するユーザーデータは、loaded Plugin assemblyのstable rootを基準にした `<plugin>/Data` を正本とする。Learning Corpus / Feature Pack / Filter revisionsは `Data/Learning`、確認セット・表示aliasは `Data/Review`。旧 `%LOCALAPPDATA%\Ymm4HighlightNavigator` は初回移行元としてのみ扱い、Portable側が存在した後は旧側へsilent fallbackしない。移行成功後も旧データは削除せずbackupとして残す。配布packageはuser `Data/` を含めない。
 
 **D-22 — Filter sharing is explicit export/import, not internal-file copying**  
-自作Filterの共有は将来許容するが、内部のrevision file / corpus directoryを公開交換形式として固定しない。共有時はversionedな明示Exportを用意し、Runtime適用に必要なFilter pattern・algorithm/schema互換情報・表示metadataだけを持たせる。教材動画、Learning Corpus、ローカルrevision履歴、確認セット、不要なprovenanceは共有packageへ自動同梱しない。import時は既存Filter identity/nameとの衝突を明示処理し、互換しないalgorithm/schemaを0値補完して受理しない。
+自作Filterの共有は将来許容するが、内部のrevision file / corpus directoryを公開交換形式として固定しない。共有時はversionedな明示Exportを用意し、Runtime適用に必要なFilter pattern・algorithm/schema互換情報・表示metadataだけを持たせる。教材動画、Learning Corpus、ローカルrevision履歴、確認セット、不要なprovenanceは共有packageへ自動同梱しない。特に現内部Patternの `SupportSampleIds` はRuntime一致判定には不要な学習provenanceなので、共有形式へそのまま持ち出す前提にしない。import時は既存Filter identity/nameとの衝突を明示処理し、互換しないalgorithm/schemaを0値補完して受理しない。
 
 # 3. PRODUCT FLOWS
 
