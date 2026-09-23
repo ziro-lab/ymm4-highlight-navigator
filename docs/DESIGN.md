@@ -99,6 +99,15 @@ Navigator自身が永続化するユーザーデータは、loaded Plugin assemb
 **D-22 — Filter sharing is explicit export/import, not internal-file copying**  
 自作Filterの共有は将来許容するが、内部のrevision file / corpus directoryを公開交換形式として固定しない。共有時はversionedな明示Exportを用意し、Runtime適用に必要なFilter pattern・algorithm/schema互換情報・表示metadataだけを持たせる。教材動画、Learning Corpus、ローカルrevision履歴、確認セット、不要なprovenanceは共有packageへ自動同梱しない。特に現内部Patternの `SupportSampleIds` はRuntime一致判定には不要な学習provenanceなので、共有形式へそのまま持ち出す前提にしない。import時は既存Filter identity/nameとの衝突を明示処理し、互換しないalgorithm/schemaを0値補完して受理しない。
 
+**D-23 — User-facing review intent is 「見たいもの」**  
+内部の `ReviewSet` / Setは保存・実行モデルとして維持し、ユーザー向けの日常概念は **「見たいもの」** とする。これは「この動画で何を探したいか」を表し、Filter参照・ON/OFF初期状態・Global Sensitivity等をまとめる。内部 `Target` は引き続き解析対象/Review occurrenceを意味し、「見たいもの」の名称には流用しない。
+
+**D-24 — Classification organizes 見たいもの, but does not become a mandatory review step**  
+「ジャンル」等の分類は「見たいもの」を探しやすくするためのmetadataであり、Filter Groupや検出意味とは別。UIは `ゲーム > X4` のようなclassification pathを表示できるが、Main Reviewで「ジャンルを選んでから見たいものを選ぶ」という固定手順を要求しない。将来ジャンルより上へ分類階層を追加できるよう、固定2階層を保存契約にしない。
+
+**D-25 — Everyday Filter toggling and asset management are separate**  
+Main Reviewでは現在の「見たいもの」に属するFilterを即時ON/OFFできる。これはworking review stateの変更であり、Filter asset削除ではない。Filterのrename/duplicate/delete、使用先確認、未使用整理は専用管理surfaceへ分離する。「見たいもの」自体もduplicate/rename/classification move/deleteを管理surfaceで扱い、built-in基本セットはduplicate可能・直接上書き/削除不可とする。
+
 # 3. PRODUCT FLOWS
 
 ## 3.1 Runtime Review
