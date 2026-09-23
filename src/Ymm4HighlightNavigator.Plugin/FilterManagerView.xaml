@@ -18,12 +18,10 @@
    ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.IsVirtualizingWhenGrouping="True" VirtualizingPanel.VirtualizationMode="Recycling">
    <ListBox.ItemTemplate><DataTemplate>
     <StackPanel Margin="4,4">
-     <TextBlock FontWeight="SemiBold" TextWrapping="Wrap">
-      <Run Text="{Binding Group}"/><Run Text=" > "/><Run Text="{Binding Name}"/>
-     </TextBlock>
-     <TextBlock FontSize="11">
-      <Run Text="{Binding Kind}"/><Run Text=" · "/><Run Text="{Binding UsageSummary}"/>
-     </TextBlock>
+     <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+     <TextBlock Text="{Binding Group}" FontSize="10" TextWrapping="Wrap"/>
+     <TextBlock Text="{Binding Kind}" FontSize="11"/>
+     <TextBlock Text="{Binding UsageSummary}" FontSize="11"/>
     </StackPanel>
    </DataTemplate></ListBox.ItemTemplate>
   </ListBox>
