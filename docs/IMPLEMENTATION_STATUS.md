@@ -2,6 +2,69 @@
 
 設計正本は **DESIGN v0.4.2**。この文書は実装・検証済みの範囲を記録する。初期学習経路が動いたことと、全機能完成・一般配布・実ゲーム品質は別のClaim。
 
+## Minimal Generic Filter Pack checkpoint — 2026-09-24 / PR #14
+
+**最初の3Generic Filterをsemantic ruleとして実装し、Pure + 実YMM4統合がGREEN。ここではFilter数を増やさず、次はHands-onの候補密度/attribution圧力テストへ進む。**
+
+- Branch: `feature/v0.4.4-generic-filter-pack`; Draft PR #14。BaseはPR #13。
+- Exact product/native tested source: `bfc8673532a5ed2c2eb3640f017e97441f34e72b`。
+- Run `35889708611`: Pure / product-native 両job PASS。
+- Core: **31 cases / 11,156 assertions / 0 failures**。
+- Rebinding: **29 / 91 / 0**。
+- Review: **34 cases PASS**。
+- Learning: **36 / 64 / 0 × ordinary + stream-copy**。
+- Product / proof build: **0 warnings / 0 errors**。
+- 実YMM4 Lite **4.56.1.0** / .NET10: **126 independent IDs PASS**。
+- Native artifact: `10764357416` / SHA256 `6f115725fe6996b5ffb2fea6c0da32798a65eabe91d0ccd362a4717b277fcfca`。
+- Pure artifact: `10764044191` / SHA256 `89f01c09ab168943a2e15db6811e5d87b364f78938fd059ba5aad5273d396a81`。
+
+実装済みGeneric Filter:
+
+- `generic.scene-change` / **大きな場面切替**
+- `generic.dark-fade` / **暗転 / フェード**
+- `generic.quiet-to-active` / **静穏 → 高活動**
+
+設計境界:
+
+- user-facingでは通常のFilter。
+- internalではlearned TransitionPatternへ偽装せず、`GenericFilterEvaluator` のsemantic rule。
+- 既存 `FeatureTable` / `TransitionIndex` を利用し、Filter ON/OFF / sensitivityでraw videoを再decodeしない。
+- sensitivity上昇はthresholdを緩める方向のみ。Pureでnested contractを確認。
+- audio無しをsilenceへ補完しない。
+- directional FilterはBefore/After最低1秒の観測を要求。
+- `静穏 → 高活動` はtransition frameをafter activityへ混ぜず、Before/After区間のDelta平均を比較。
+- `汎用 > 基本` はこの3FilterをONで参照。
+- 旧 `seed.visual/audio/brightness` は意味を変えず `旧互換` として残しdefault OFF。旧保存ReviewSetの参照をmissingへしない。
+
+Pure追加contract:
+
+- `generic-large-scene-change`
+- `generic-dark-fade-directional`
+- `generic-quiet-to-activity-directional`
+- `generic-sensitivity-monotonic-no-audio`
+
+Native追加required:
+
+- `ux_generic_basic_catalog`
+- `ux_legacy_seed_compatibility_off_default`
+- `ux_generic_real_fixture_behavior`
+
+実fixtureでは「大きな場面切替」「暗転 / フェード」がhitし、単なるblack/white static cutを「静穏 → 高活動」と誤認しないことを確認した。
+
+Retained failures:
+
+- run `35888797632`: Catalogのtarget-typed `new(...).Normalize()` がC#で推論不能。明示constructorへ修正。
+- run `35889135231`: clip先頭の短いBefore文脈をactivity方向ruleが誤認。方向性ruleへboundary guardを追加。
+- run `35889345583`: 2秒FullContext必須はPure GREENだが、短いtarget coverageの正しい暗転を落とした。Before/After最低1秒へright-size。
+- run `35889708611`: Pure + native GREEN。
+
+未完了 / 次:
+
+- 実素材Hands-onでcandidate density、attribution、Filter ON/OFF、見たいもの切替、Sensitivityを圧力テスト。
+- 3Filter同時ON時の候補過多/不足を確認してinteraction modelをfreeze。
+- その前に4つ目のGeneric Filterを増やさない。
+- 後続候補は高活動→静穏、強いフラッシュ、長時間ほぼ静止、画面構成の大きな変化。
+
 ## 見たいもの / Filter management checkpoint — 2026-09-24 / PR #13
 
 **Main Reviewを膨らませず、稀な整理・削除操作を専用surfaceへ分離した管理sliceが実YMM4 GREEN。**
