@@ -26,6 +26,7 @@
   "unsupported-schema-rejected",
   "view-intent-classification-roundtrip-variable-depth",
   "view-intent-classification-validation",
+  "view-intent-legacy-no-classification-compatible",
   "view-intent-same-name-different-classification",
   "working-edit-does-not-mutate-saved",
   "writer-conflict-and-retry"
