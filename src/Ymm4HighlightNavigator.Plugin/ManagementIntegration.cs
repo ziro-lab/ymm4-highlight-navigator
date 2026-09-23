@@ -15,7 +15,8 @@ public sealed class FilterManagementRow(ProfileChoice choice) : NotifyModel
     public string FilterId => Choice.Profile.Id;
     public string Group => Choice.Group;
     public string Name => Choice.ShortName;
-    public string Kind => Choice.Learned is null ? "標準フィルター"
+    public string Kind => Choice.Generic is not null ? "汎用フィルター"
+        : Choice.Learned is null ? "標準フィルター"
         : Choice.Learned.Revision == 0 ? "試用中"
         : "自作フィルター";
     public string Count => Choice.Count;
