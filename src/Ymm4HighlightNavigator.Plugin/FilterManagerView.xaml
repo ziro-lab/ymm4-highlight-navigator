@@ -19,7 +19,7 @@
      <TextBlock Text="{Binding ShortName}" TextWrapping="Wrap" FontWeight="SemiBold"/>
      <TextBlock Text="{Binding Count}" FontSize="11"/>
     </StackPanel>
-   </ListBox.ItemTemplate>
+   </DataTemplate></ListBox.ItemTemplate>
   </ListBox>
   <Expander Grid.Row="3" Header="選択フィルターの表示名・整理グループ" Margin="0,6,0,0">
    <StackPanel Margin="4,4,4,0">
