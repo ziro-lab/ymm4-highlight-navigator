@@ -18,6 +18,7 @@ public sealed class LearningModel : NotifyModel, IDisposable
     private readonly CorpusStore corpus;
     private readonly FilterStore filters;
     private readonly Action<TransitionFilter> useFilter;
+    private readonly string storagePath;
     private CancellationTokenSource? cancel;
     private bool busy, disposed, checking, hasExamples, hasPrevious, newClassification = true;
     private int contextGeneration, knownFilterRevision = -1;
@@ -58,6 +59,10 @@ public sealed class LearningModel : NotifyModel, IDisposable
     public bool HasDraft => draft != null;
     public TransitionFilter? LastSaved { get; private set; }
     public ImportBatchResult? LastImport { get; private set; }
+    public string StoragePath => storagePath;
+    public string StorageHint => NavigatorStorage.MigratedLegacyLearningThisProcess
+        ? "旧LocalAppDataの学習データをYMM4フォルダー内へ移行しました。旧データはバックアップとして残しています。"
+        : "教材・Feature Pack・保存フィルターはYMM4フォルダー内に保存されます。";
     public string DraftSummary => draft == null ? LastSaved == null ? "作成した候補は、試してから保存できます。" : $"{LastSaved.Label.Name} を保存済み（第{LastSaved.Revision}版）" :
         $"保持中: {draft.Filter.Label.Group} / {draft.Filter.Label.Name}\n候補あり {draft.Coverage.Covered}本 / 未検出 {draft.Coverage.Hard}本 / 切替候補なし {draft.Coverage.NoTransition}本";
     public string DraftHint => draft == null ? "" : checking ? "適用先を確認中です。候補は保持しています。" : DraftMatchesContext
@@ -75,10 +80,12 @@ public sealed class LearningModel : NotifyModel, IDisposable
     public ICommand NewClassificationCommand { get; }
     public ICommand RestoreDraftContextCommand { get; }
     public ICommand DiscardDraftCommand { get; }
+    public ICommand OpenStorageCommand { get; }
 
-    public LearningModel(CorpusStore corpus, Action<TransitionFilter> useFilter)
+    public LearningModel(CorpusStore corpus, Action<TransitionFilter> useFilter, string? storagePath = null)
     {
         this.corpus = corpus; filters = new(corpus); this.useFilter = useFilter;
+        this.storagePath = Path.GetFullPath(storagePath ?? corpus.Root);
         ChooseFolderCommand = new RelayCommand(() => Safe(ChooseFolder), () => CanEdit);
         ChooseFilesCommand = new RelayCommand(() => Safe(ChooseFiles), () => CanEdit);
         ImportCommand = new RelayCommand(() => _ = ImportFromHostAsync(), () => CanEdit && paths.Length > 0 && TryLabel(out _));
@@ -90,6 +97,7 @@ public sealed class LearningModel : NotifyModel, IDisposable
         NewClassificationCommand = new RelayCommand(() => { selectedLabel = null; Changed(nameof(SelectedLabel)); IsNewClassification = true; }, () => CanEdit);
         RestoreDraftContextCommand = new RelayCommand(() => { if (draft != null) SetContext(draft.Filter.Label); }, () => CanEdit && draft != null);
         DiscardDraftCommand = new RelayCommand(() => { draft = null; NotifyDraft(); Status = "未保存の候補を破棄しました。教材と保存済みフィルターは残っています。"; }, () => CanEdit && draft != null);
+        OpenStorageCommand = new RelayCommand(() => Safe(() => NavigatorStorage.OpenDirectory(this.storagePath)), () => !disposed);
     }
     private LearningLabel Label => new LearningLabel(Group, FilterName).Normalize();
     private bool TryLabel(out LearningLabel? label)

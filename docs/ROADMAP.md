@@ -154,6 +154,10 @@ Runtime候補へ「これは違う」を追加。その前後Featureと、対象
 
 通常配布はまだ行っていない。NavigatorはFFmpegを独自配布せず、host bundleを使う。
 
+### Optional later — Filter export / import
+
+自作Filter共有はcurrent critical pathには入れないが、将来の小さい独立機能として残す。内部のFilter revision JSON / Corpusをそのまま交換せず、versionedなExport/Import形式を使う。Runtimeに必要なPattern・互換情報・表示metadataだけを対象にし、教材動画、Corpus、ローカルrevision履歴、`SupportSampleIds` 等の学習provenance、確認セットは既定で含めない。import時の同名/同ID衝突とalgorithm/schema不一致は明示処理する。
+
 ## Planned UI/UX-first sequencing
 
 Before expanding the generic filter catalog, perform the UI/UX structure pass recorded in [UI_UX_GENERIC_FILTER_PLAN.md](UI_UX_GENERIC_FILTER_PLAN.md).

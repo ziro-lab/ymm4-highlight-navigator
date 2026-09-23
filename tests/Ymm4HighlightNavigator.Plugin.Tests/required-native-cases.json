@@ -1,5 +1,11 @@
 [
   "real_product_tool",
+  "portable_data_root_plugin_local",
+  "portable_learning_legacy_migration",
+  "portable_review_legacy_migration",
+  "portable_existing_authority_wins",
+  "portable_corrupt_authority_no_legacy_fallback",
+  "portable_corrupt_legacy_not_published",
   "ymm4_bundled_ffmpeg_resolved",
   "ymm4_bundled_ffprobe_resolved",
   "no_plugin_private_backend_copy",

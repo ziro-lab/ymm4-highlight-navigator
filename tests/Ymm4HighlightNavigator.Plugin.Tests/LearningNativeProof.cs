@@ -101,6 +101,6 @@ internal static class LearningNativeProof
         var image = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32); image.Render(surface);
         using (var file = File.Create(Path.Combine(output, $"learning-{width}x{height}.png")))
         { var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(image)); png.Save(file); }
-        return new[] { "ChooseFolderButton", "ImportButton", "CreateFilterButton", "LearningResults", "TryFilterButton", "SaveFilterButton" }.All(Inside);
+        return new[] { "ChooseFolderButton", "ImportButton", "CreateFilterButton", "LearningResults", "TryFilterButton", "SaveFilterButton", "DataStoragePath", "OpenDataFolderButton" }.All(Inside);
     }
 }

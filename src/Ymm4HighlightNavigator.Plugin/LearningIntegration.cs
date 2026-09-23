@@ -12,12 +12,9 @@ public sealed partial class NavigatorModel
     private LearningModel? learningModel;
     private bool learningLoaded;
     private int filterLoadGeneration;
-    public static CorpusStore UserCorpus()
-    {
-        string appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        if (string.IsNullOrWhiteSpace(appData)) throw new IOException("ユーザー用の保存先を取得できませんでした。");
-        return new(Path.Combine(appData, "Ymm4HighlightNavigator", "Learning"));
-    }
+    public static CorpusStore UserCorpus() => new(NavigatorStorage.PrepareLearning().Path);
+    public string UserDataPath => NavigatorStorage.DataDirectory;
+    public ICommand OpenUserDataFolderCommand => new RelayCommand(() => Safe(NavigatorStorage.OpenDataDirectory), () => !disposed);
     public ICommand OpenLearningCommand => new RelayCommand(() => Safe(OpenLearning), () => !disposed && !IsBusy);
     public async Task EnsureLearningLoadedAsync()
     {
@@ -66,7 +63,7 @@ public sealed partial class NavigatorModel
     private void OpenLearning()
     {
         if (learningWindow != null) { learningWindow.Activate(); return; }
-        var model = learningModel ??= new LearningModel(UserCorpus(), InstallTransitionFilter);
+        var model = learningModel ??= new LearningModel(UserCorpus(), InstallTransitionFilter, NavigatorStorage.DataDirectory);
         var view = new LearningView { DataContext = model };
         var window = new Window { Title = "動画からフィルターを作る", Content = view, Width = 680, Height = 680, MinWidth = 400, MinHeight = 560, WindowStartupLocation = WindowStartupLocation.CenterOwner };
         var owner = Application.Current.Windows.Cast<Window>().FirstOrDefault(w => w.IsActive);

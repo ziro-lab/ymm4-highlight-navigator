@@ -93,6 +93,12 @@ CandidateはReview用の広いTimeRangeに加えて、実際のhit瞬間を表�
 **D-20 — Memo capture semantics**  
 memo ClipはCandidate `AnchorSourceTime` から開始し、前余白を付けない。初期default durationは30秒、ユーザーが秒数を変更できる。初版は100% playbackの参照Clipとし、source終端を越える場合だけ短縮する。Layerはmemo Scene内で既存Itemがない最小のpositive Layerを使う。Remarkは `見どころナビ｜<hit Filter names>` を基本形にし、同じsource+anchorのNavigator memoは重複追加しない。
 
+**D-21 — Portable user-data authority**  
+Navigator自身が永続化するユーザーデータは、loaded Plugin assemblyのstable rootを基準にした `<plugin>/Data` を正本とする。Learning Corpus / Feature Pack / Filter revisionsは `Data/Learning`、確認セット・表示aliasは `Data/Review`。旧 `%LOCALAPPDATA%\Ymm4HighlightNavigator` は初回移行元としてのみ扱い、Portable側が存在した後は旧側へsilent fallbackしない。移行成功後も旧データは削除せずbackupとして残す。配布packageはuser `Data/` を含めない。
+
+**D-22 — Filter sharing is explicit export/import, not internal-file copying**  
+自作Filterの共有は将来許容するが、内部のrevision file / corpus directoryを公開交換形式として固定しない。共有時はversionedな明示Exportを用意し、Runtime適用に必要なFilter pattern・algorithm/schema互換情報・表示metadataだけを持たせる。教材動画、Learning Corpus、ローカルrevision履歴、確認セット、不要なprovenanceは共有packageへ自動同梱しない。特に現内部Patternの `SupportSampleIds` はRuntime一致判定には不要な学習provenanceなので、共有形式へそのまま持ち出す前提にしない。import時は既存Filter identity/nameとの衝突を明示処理し、互換しないalgorithm/schemaを0値補完して受理しない。
+
 # 3. PRODUCT FLOWS
 
 ## 3.1 Runtime Review
@@ -482,6 +488,23 @@ Runtime候補には将来:
 
 # 12. STORAGE / LIFECYCLE
 
+Navigator-owned portable root:
+
+```text
+<YMM4>/user/plugin/Ymm4HighlightNavigator/Data/
+├─ Learning/
+│  ├─ corpus.json
+│  ├─ packs/*.navfp
+│  ├─ filters.json
+│  └─ filters/<filter-key>/<revision>.json
+└─ Review/
+   └─ review-settings.json
+```
+
+Pathはhard-codedなYMM4 version/pathではなくloaded Navigator assembly locationから解決する。旧 `%LOCALAPPDATA%\Ymm4HighlightNavigator\Learning|Review` はPortable rootが未作成の場合だけ検証付きで移行する。Portableが存在すれば常にそちらがAuthorityで、破損時もlegacyへ黙って戻らない。旧データは移行後も削除しない。
+
+UIから実保存先を確認してフォルダーを開けること。将来の `.ymme` package/installでは `Data/` をpackage payloadへ含めず、updateでuser dataを上書きしないことをrelease acceptanceへ含める。
+
 Persistent:
 
 - Filter/Profile Group metadata
@@ -505,6 +528,8 @@ Session:
 - temporary descriptors / backend temp
 
 Profile revisionがPack schemaを満たさない場合、黙って0/negative扱いしない。
+
+内部保存形式はバックアップ/移行のAuthorityであり、共有契約ではない。自作Filterの共有を実装する場合は別のversioned Export/Import境界を追加し、Corpusやraw動画を必要としないRuntime Filter packageとして扱う。
 
 # 13. ACCEPTANCE
 

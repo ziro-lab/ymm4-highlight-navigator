@@ -68,8 +68,11 @@ Preview/保存の物理操作、入出力picker、theme/DPI、実録画精度・
 
 ## Persistence and preservation boundary
 
-- 確認セット: `%LOCALAPPDATA%\Ymm4HighlightNavigator\Review\review-settings.json`。
-- Corpus/学習Filter: 既存の `%LOCALAPPDATA%\Ymm4HighlightNavigator\Learning`。正本は分離。
+- Navigator-owned user dataの正本: loaded plugin rootの `Data/`。
+- 確認セット: `Data/Review/review-settings.json`。
+- Corpus/学習Filter: `Data/Learning`。確認設定とは正本を分離。
+- 旧 `%LOCALAPPDATA%\Ymm4HighlightNavigator\Learning|Review` はPortable側が無い初回だけ検証付きでコピーし、旧側はbackupとして保持。Portableが存在した後は旧側へsilent fallbackしない。
+- 学習/フィルター整理surfaceから実保存先を表示・openできる。
 - 明示保存したセットはディスクへ残る。未保存working state/Draftはセッション内保持であり、YMM4再起動/クラッシュ後の自動復元は未実装。
 - 表示aliasで既存Filter IDを変えない。教材分類のrename/migrationや学習Filter複製は別の所有権・回帰仕様が必要。
 - broken referencesを勝手に除去しない。破損ファイルを空として上書きしない。

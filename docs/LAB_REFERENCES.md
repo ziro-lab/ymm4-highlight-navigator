@@ -188,6 +188,31 @@ Navigator採用ルール:
 
 再確認条件はhost版変更、map/locator surface変更、対応速度範囲拡張、product regressionとの矛盾。既存の確定Claimをまた一式新規Labへ投げない。製品証拠は [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md)。
 
+## YMM4 .ymme update preservation — ADOPTED for portable Data placement
+
+- Lab PR: #85
+- Tested source/head: `7d49a2088dbe50cbf1c43bb213013aeef49b81e0`
+- Exact host: YMM4 Lite **4.55.1.1**
+- Host ZIP SHA256: `125860147cc33b831fc1a6d6ea996958001c2ead3b0d37f7d900251d5617db9b`
+- Run: `35701097895`; job `106659061559`; conclusion **success**
+- Artifact: `10682857357`; uploaded digest SHA256 `3979d7d77aa7b8108ef4486fe84b59cd10ee35daddf44f9cbc59dac219edfe52`
+
+実YMM4の `.ymme` 経路で同一pluginをv1→v2更新し、v2 DLL/package markerへの更新を確認したうえで、packageに含まれない既存ファイルの扱いを観測した。
+
+Navigatorが採用する狭い事実:
+
+1. tested hostでは `<plugin>/Data/settings-probe.json` と `<plugin>/Data/nested/...` がv2更新後も保持された。
+2. plugin root直下の未知ファイルと `<YMM4>/user/` sibling dataも保持された。
+3. v1 packageにだけ存在したobsolete fileも残った。したがってupdateを「旧package payloadを完全cleanして再展開」と仮定しない。
+4. Navigatorのportable dataはstable plugin root配下の `Data/` に置き、将来のpackage payloadへuser `Data/` を含めない。package更新でデータを上書きする設計にしない。
+
+未証明:
+
+- future YMM4全version;
+- 手動plugin削除/完全再install後の保持;
+- YMM4 application自体のself-update;
+- Navigator固有の移行ロジック。これは製品native proofで別に検証する。
+
 ## Validation practice — ADOPTED
 
 Lab commit `46530ac8de801d22683ebd4587cccea6c175cc28`:

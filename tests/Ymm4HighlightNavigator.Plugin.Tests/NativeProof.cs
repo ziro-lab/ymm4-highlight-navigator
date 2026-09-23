@@ -123,6 +123,7 @@ internal static class Proof
     private static async Task RunAsync(NavigatorView view, NavigatorModel model, Timeline timeline)
     {
         Check("real_product_tool", model.CaptureCommand.CanExecute(null));
+        PortableStorageNativeProof.Run(output, Check);
         await model.EnsureLearningLoadedAsync();
         string media = Environment.GetEnvironmentVariable("NAV_NATIVE_MEDIA") ?? throw new InvalidOperationException("No fixture.");
         var bundled = Ymm4FfmpegLocator.Resolve(); string ffmpeg = bundled.FfmpegPath, ffprobe = bundled.FfprobePath;
