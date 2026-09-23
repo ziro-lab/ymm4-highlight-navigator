@@ -15,7 +15,7 @@ assert result['failures'] == 0 and all(case['passed'] is True for case in result
 print('Independent rebinding gate PASS:', len(ids), 'cases;', result['assertions'], 'assertions')
 
 learning_required = json.loads(Path('tests/Ymm4HighlightNavigator.Learning.Tests/required-cases.json').read_text())
-assert len(learning_required) == 35 and len(set(learning_required)) == 35
+assert len(learning_required) == 36 and len(set(learning_required)) == 36
 for folder in ('learning-tests', 'learning-trim-tests'):
     learning = json.loads(Path(f'out/{folder}/results.json').read_text())
     ids = [case['id'] for case in learning['cases']]
@@ -29,4 +29,4 @@ samples = json.loads(payload)['samples']
 assert len(samples) == 1 and abs(samples[0]['endSeconds'] - 6.0) < 0.001
 meta = json.loads(Path('out/trim-metadata.json').read_text())
 assert float(meta['format']['duration']) >= 6.0
-print('Independent learning gate PASS: 35 cases x ordinary/stream-copy media; video domain 6.0s')
+print('Independent learning gate PASS: 36 cases x ordinary/stream-copy media; video domain 6.0s')
