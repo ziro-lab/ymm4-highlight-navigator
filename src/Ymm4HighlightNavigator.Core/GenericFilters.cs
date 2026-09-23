@@ -84,7 +84,7 @@ public static class GenericFilterEvaluator
 
     private static bool DarkFade(FeatureTable table, TransitionCandidate candidate, double sensitivity)
     {
-        if (candidate.Before.End - candidate.Before.Start < .5 || candidate.After.End - candidate.After.Start < .5)
+        if (!candidate.FullContext || candidate.Before.End - candidate.Before.Start < .5 || candidate.After.End - candidate.After.Start < .5)
             return false;
         float? before = AverageLuma(table, candidate.Before);
         float? after = AverageLuma(table, candidate.After);
@@ -100,7 +100,7 @@ public static class GenericFilterEvaluator
 
     private static bool QuietToActivity(FeatureTable table, TransitionCandidate candidate, double sensitivity)
     {
-        if (candidate.Before.End - candidate.Before.Start < .5 || candidate.After.End - candidate.After.Start < .5)
+        if (!candidate.FullContext || candidate.Before.End - candidate.Before.Start < .5 || candidate.After.End - candidate.After.Start < .5)
             return false;
         float? before = Average(table, candidate.Before, row => row.Delta);
         float? after = Average(table, candidate.After, row => row.Delta);
