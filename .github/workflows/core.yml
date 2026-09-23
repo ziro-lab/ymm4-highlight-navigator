@@ -92,10 +92,10 @@ jobs:
           from pathlib import Path
           r=json.loads(Path('out/core-tests/results.json').read_text())
           assert r['schema']=='navigator.core-tests.v1' and r['source']==os.environ['GITHUB_SHA']
-          assert r['failures']==0 and len(r['cases'])==27 and all(c['passed'] for c in r['cases'])
+          assert r['failures']==0 and len(r['cases'])==31 and all(c['passed'] for c in r['cases'])
           ids=[c['id'] for c in r['cases']]
           assert len(ids)==len(set(ids))
-          for required in ('pack-corruption-rejected','profile-missing-audio-not-zero','multi-profile-40-hits-36-episodes','ffmpeg-full-video-audio','ffmpeg-trimmed-source-clock','backend-active-cancellation'):
+          for required in ('pack-corruption-rejected','profile-missing-audio-not-zero','multi-profile-40-hits-36-episodes','generic-large-scene-change','generic-dark-fade-directional','generic-quiet-to-activity-directional','generic-sensitivity-monotonic-no-audio','ffmpeg-full-video-audio','ffmpeg-trimmed-source-clock','backend-active-cancellation'):
               assert required in ids
           print('Independent evidence gate passed:',len(ids),'cases')
           PY
