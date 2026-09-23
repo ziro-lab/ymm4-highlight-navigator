@@ -153,9 +153,9 @@ internal static class UxNativeProof
 
         var learnedRow = model.FilterManagementRows.Single(r => r.Choice.Learned is { Revision: > 0 });
         model.FilterUsageMode = "未使用";
-        var unusedVisible = model.FilterManagementLibrary.Cast<object>().OfType<FilterManagementRow>().ToArray();
+        var unusedVisible = model.VisibleFilterManagementRows.ToArray();
         model.FilterUsageMode = "使用中";
-        var usedVisible = model.FilterManagementLibrary.Cast<object>().OfType<FilterManagementRow>().ToArray();
+        var usedVisible = model.VisibleFilterManagementRows.ToArray();
         model.FilterUsageMode = "すべて";
         check("ux_filter_usage_filtering", learnedRow.IsUnused && learnedRow.CanDelete
             && unusedVisible.Any(r => r.FilterId == learnedRow.FilterId)
