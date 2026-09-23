@@ -102,7 +102,7 @@ public sealed partial class NavigatorModel : NotifyModel, ITimelineToolViewModel
     private int generation, queryGeneration;
     private bool disposed, busy, querying, hasQueryResult;
     private double sensitivity = 1, progress;
-    private string status = "YMM4で動画を選び、対象に追加してください。";
+    private string status = "YMM4で確認したい動画を選び、「選択動画を対象に」を押してください。";
     private Candidate? selected;
     private int hitTotal;
     public string Title => "YMM4見どころナビ";
@@ -117,6 +117,9 @@ public sealed partial class NavigatorModel : NotifyModel, ITimelineToolViewModel
     public bool CanConfigure => !IsBusy && !IsReviewSettingsBusy;
     public double Progress { get => progress; private set { progress = Math.Clamp(value, 0, 1); Changed(); } }
     public string Status { get => status; private set { status = value; Changed(); } }
+    public bool HasTargets => !Targets.IsEmpty;
+    public bool HasNoTargets => Targets.IsEmpty;
+    public string CaptureActionText => HasTargets ? "対象を変更" : "選択動画を対象に";
     public string TargetSummary => Targets.IsEmpty ? "対象なし" : $"対象 {Targets.Length}個: " + string.Join(" / ", Targets.Select(t => Path.GetFileName(t.SourceKey)).Distinct().Take(2));
     public string CandidateSummary => IsQuerying ? "候補を更新中…" : hasQueryResult ? $"候補 {Candidates.Count}件 / ヒット計 {hitTotal}" : "候補は未計算です";
     public double Sensitivity { get => sensitivity; set { if (!double.IsFinite(value) || value < .25 || value > 2 || value == sensitivity) return; sensitivity = value; Changed(); ReviewChoicesChanged(); } }
@@ -153,7 +156,7 @@ public sealed partial class NavigatorModel : NotifyModel, ITimelineToolViewModel
         {
             generation++; Cancel(); analyzed.Clear(); visited.Clear(); Candidates.Clear(); Selected = null; hitTotal = 0; hasQueryResult = false;
             Status = "タイムラインが変わりました。動画を対象に追加してください。";
-            Changed(nameof(TargetSummary)); Changed(nameof(CandidateSummary)); Commands();
+            Changed(nameof(TargetSummary)); Changed(nameof(HasTargets)); Changed(nameof(HasNoTargets)); Changed(nameof(CaptureActionText)); Changed(nameof(CandidateSummary)); Commands();
         }
     }
     public void CaptureSelection()
@@ -162,7 +165,7 @@ public sealed partial class NavigatorModel : NotifyModel, ITimelineToolViewModel
         adapter.CaptureSelection(); generation++; queryCancel?.Cancel(); analyzed.Clear(); visited.Clear(); Candidates.Clear(); Selected = null; hitTotal = 0; hasQueryResult = false;
         foreach (var p in Profiles) p.Count = "";
         Status = "対象を固定しました。選択を変えても対象は変わりません。";
-        Changed(nameof(TargetSummary)); Changed(nameof(CandidateSummary)); Commands();
+        Changed(nameof(TargetSummary)); Changed(nameof(HasTargets)); Changed(nameof(HasNoTargets)); Changed(nameof(CaptureActionText)); Changed(nameof(CandidateSummary)); Commands();
     }
     private async Task AnalyzeFromUiAsync()
     {

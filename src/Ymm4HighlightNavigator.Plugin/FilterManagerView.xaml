@@ -3,7 +3,7 @@
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" MinWidth="320" MinHeight="340">
  <Grid Margin="10">
   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-  <TextBlock Text="チェックしたフィルターを併用します。OFFは削除ではありません。" TextWrapping="Wrap" Margin="0,0,0,6"/>
+  <TextBlock Text="保存済みフィルターの表示名と整理グループを管理します。ON/OFFはメイン画面の「フィルター n/m」から変更します。" TextWrapping="Wrap" Margin="0,0,0,6"/>
   <TextBox x:Name="FilterSearchBox" Grid.Row="1" Text="{Binding FilterSearch,UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="フィルター名・グループで検索" ToolTip="名前・グループで検索" Margin="0,0,0,6"/>
   <ListBox Grid.Row="2" x:Name="FilterLibraryList" ItemsSource="{Binding FilterLibrary}" SelectedItem="{Binding ManagedFilter}" IsEnabled="{Binding CanConfigure}"
    ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.IsVirtualizingWhenGrouping="True" VirtualizingPanel.VirtualizationMode="Recycling">
@@ -15,15 +15,16 @@
     </Style></GroupStyle.ContainerStyle>
    </GroupStyle></ListBox.GroupStyle>
    <ListBox.ItemTemplate><DataTemplate>
-    <CheckBox IsChecked="{Binding Enabled}" Margin="3,3" VerticalContentAlignment="Center">
-     <StackPanel><TextBlock Text="{Binding Name}" TextWrapping="Wrap"/><TextBlock Text="{Binding Count}" FontSize="11"/></StackPanel>
-    </CheckBox>
-   </DataTemplate></ListBox.ItemTemplate>
+    <StackPanel Margin="4,4">
+     <TextBlock Text="{Binding ShortName}" TextWrapping="Wrap" FontWeight="SemiBold"/>
+     <TextBlock Text="{Binding Count}" FontSize="11"/>
+    </StackPanel>
+   </ListBox.ItemTemplate>
   </ListBox>
-  <Expander Grid.Row="3" Header="選択フィルターの表示名・グループ" Margin="0,6,0,0">
+  <Expander Grid.Row="3" Header="選択フィルターの表示名・整理グループ" Margin="0,6,0,0">
    <StackPanel Margin="4,4,4,0">
     <TextBlock Text="表示上の整理だけを変更します。教材の分類や検出結果は変わりません。" TextWrapping="Wrap" FontSize="11"/>
-    <TextBlock Text="グループ"/><TextBox Text="{Binding DisplayGroup,UpdateSourceTrigger=PropertyChanged}" MaxLength="100" AutomationProperties.Name="表示グループ" IsEnabled="{Binding CanConfigure}"/>
+    <TextBlock Text="整理グループ"/><TextBox Text="{Binding DisplayGroup,UpdateSourceTrigger=PropertyChanged}" MaxLength="100" AutomationProperties.Name="表示グループ" IsEnabled="{Binding CanConfigure}"/>
     <TextBlock Text="表示名" Margin="0,3,0,0"/><TextBox Text="{Binding DisplayName,UpdateSourceTrigger=PropertyChanged}" MaxLength="100" AutomationProperties.Name="フィルター表示名" IsEnabled="{Binding CanConfigure}"/>
     <Button Content="表示情報を保存" Command="{Binding SaveFilterPresentationCommand}" HorizontalAlignment="Left" Margin="0,5,0,0" Padding="8,3"/>
    </StackPanel>
