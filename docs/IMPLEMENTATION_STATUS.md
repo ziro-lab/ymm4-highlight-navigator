@@ -1,6 +1,53 @@
-# Implementation checkpoint — v0.4.2 Portable Data candidate
+# Implementation checkpoint — v0.4.3 見たいもの Main Review candidate
 
 設計正本は **DESIGN v0.4.2**。この文書は実装・検証済みの範囲を記録する。初期学習経路が動いたことと、全機能完成・一般配布・実ゲーム品質は別のClaim。
+
+## 見たいもの Main Review checkpoint — 2026-09-23 / PR #12
+
+**内部ReviewSet/Targetを維持したまま、ユーザー向けMain Reviewを「見たいもの」中心へ変更し、Pure + 実YMM4統合がPASS。管理surfaceの完成・Generic Filter Pack・Hands-onは後続。**
+
+- Branch: `feature/v0.4.3-view-intent-main`; Draft PR #12。Baseはdesign PR #11。
+- Exact product/native tested source: `3598261b42fc9f1444fba106e58ebac52f06906b`。後続test/docs HEADをtested product sourceへ読み替えない。
+- Native + preflight run `35878382449`: 両job PASS。
+- Product-native: 実YMM4 Lite **4.56.1.0** / .NET10、**116 independent IDs PASS**、Product/proof build **0 warnings / 0 errors**。
+- Native artifact `10759282442` / SHA256 `e42ab021da8734efec90d77e58b23f04d29d9a7ca6902e327da2b2a4fca5a408`。
+- Same-run Pure artifact `10759930348` / SHA256 `d6340b95a6b52f9bb6982ff5818bc4f84a2490efcb40b5702262c79cfa1d30de`。
+- Product-tested Pure: Core **27 / 11,147 / 0**, Rebinding **29 / 91 / 0**, Review **30 cases PASS**, Learning **35 / 60 / 0 × ordinary + stream-copy**。
+- 後続Pure-test-only HEAD `6acf42af11a2f8c8fe7b7aa67ded885d2f629095` / run `35878998086`: Review **31 cases PASS**。旧v0.4.2保存データにClassificationPathが無い場合を空pathとして読み込む `view-intent-legacy-no-classification-compatible` を追加してPASS。artifact `10759648542` / SHA256 `4cf06792d82de3279bb2a43b549a3af70c38969bb27348e83390b2c6ad3df978`。
+
+実装済み:
+
+- Main Reviewのユーザー向け主語を `確認セット` から **`見たいもの`** へ変更。内部 `ReviewSet` は維持。
+- 内部 `Target` は解析対象の意味を維持し、見たいものとは別。
+- ReviewSetへ可変長 `ClassificationPath` を追加。Main pickerは `汎用 > 基本` のようにpathを表示し、Genreを別Dropdownで必須にしない。
+- Filter presentation Groupと見たいものclassificationを別保存。
+- 見たいものpickerへFilter自動要約を表示。
+- active Filter chipの×はworking stateでOFFにするだけ。asset削除ではない。
+- `フィルター n/m` progressive disclosureから全Filterを即ON/OFF可能。
+- working stateが保存済みと異なる時だけ `変更あり` と保存/別名保存を提示。
+- Save Asは現在のClassificationPathを継承。
+- target未取得時は他Review操作を隠し、`解析対象` Empty State + `選択動画を対象に` の次の1操作だけを表示。
+- Filter ON/OFFをMainへ寄せ、別windowを `フィルターを整理` としてasset管理側へ寄せた。
+
+UI native proof + screenshot目視:
+
+- `ux-empty-360x360.png`: 初回の次操作が一意。
+- `ux-review-360x480.png`: 解析対象 → 見たいもの → Filter → 感度 → 候補が収まる。
+- `ux-review-filters-360x600.png`: quick Filter展開でも横隠れなし。
+- `filter-manager-360x480.png`: ON/OFFはMain、管理は別という役割分離が読める。
+- 新required: path/summary、modified state、classification継承save、quick Filter disclosure、Empty State。
+
+Retained failure:
+
+- run `35877992082` はPure PASS後、追加XAMLの `DataTemplate` 閉じタグ欠落でProduct build FAIL。ロジック/host failureではない。4箇所を修正し、required IDを削らずexact source `3598261b...` で再実行してPASS。失敗runを成功証拠へ読み替えない。
+
+未完了:
+
+- `見たいものを整理` のduplicate/rename/classification move/delete UI。
+- Filterのused/unused、使用先一覧、duplicate/delete。
+- Genre別built-in basicsと最小Generic Filter Pack。
+- physical input / user Hands-on / interaction freeze。
+
 
 ## Portable Data checkpoint — 2026-09-23 / PR #10
 
