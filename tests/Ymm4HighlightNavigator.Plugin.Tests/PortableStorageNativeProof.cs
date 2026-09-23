@@ -16,7 +16,9 @@ internal static class PortableStorageNativeProof
             && Path.GetFullPath(NavigatorStorage.ReviewDirectory) == Path.Combine(plugin, "Data", "Review")
             && !NavigatorStorage.DataDirectory.StartsWith(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + Path.DirectorySeparatorChar,
-                StringComparison.OrdinalIgnoreCase));
+                StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(NavigatorStorage.LearningDirectory, NavigatorStorage.LegacyLearningDirectory, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(NavigatorStorage.ReviewDirectory, NavigatorStorage.LegacyReviewDirectory, StringComparison.OrdinalIgnoreCase));
 
         string? portableLearningBackup = MoveAside(NavigatorStorage.LearningDirectory);
         string? legacyLearningBackup = MoveAside(NavigatorStorage.LegacyLearningDirectory);
