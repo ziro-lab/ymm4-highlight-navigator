@@ -2,7 +2,7 @@
 
 Status: **PLANNED / not yet implementation-frozen**
 
-This memo records the product direction decided on 2026-09-22 so that deferred UI/UX and generic-filter work is not lost. Existing W1-R/W4-M/W6 work remains valid; this document changes the preferred sequencing, not the already-verified host/core evidence.
+This memo records the product direction decided on 2026-09-22 and refined on 2026-09-23 through a first-time-user cognitive walkthrough. Existing W1-R/W4-M/W6 work remains valid; this document changes the preferred sequencing and user-facing information architecture, not the already-verified host/core evidence.
 
 ## Why this pass comes first
 
@@ -29,36 +29,44 @@ These items affect the mental model, persistence contract, work preservation, or
 Keep the everyday task order explicit:
 
 ```text
-対象動画
-→ 確認セット / Filter
+解析対象
+→ 見たいもの
+→ 必要ならFilterをその場でON/OFF
 → 解析
-→ 候補Review
+→ 見どころ候補をReview
 → 必要なら見どころ確保
 ```
 
 - Preserve explicit target capture. YMM4 selection changes must not silently change the review target.
-- The internal concept remains `Set`, but the user-facing label should be **確認セット**.
-- A Set is important, but is not the top-level task. The target comes first.
-- Keep Main Review focused on target, active review settings, candidate navigation, and current status.
+- The internal concept remains `ReviewSet` / Set. The primary user-facing label is **見たいもの**.
+- Internal `Target` continues to mean the captured analysis/review target. Do not reuse Target for the user-facing “見たいもの” concept.
+- “ジャンル” and any future parent category organize `見たいもの`; they are not additional runtime detector semantics.
+- Do not force the user through separate category dropdowns on every review. Main Review selects **見たいもの directly**, while the picker shows its classification path such as `ゲーム > X4`.
+- A future extra level before Genre must be addable without changing the everyday review flow. Avoid a persistence contract that assumes a fixed two-level hierarchy.
+- Keep Main Review focused on the analysis target, current “見たいもの”, active Filters, candidate navigation, and current status.
 
-#### B. Filter / Group / Set semantics and persistence
+#### B. Filter / Filter Group / View Intent semantics and persistence
 
-Freeze the meaning of the three concepts now:
+Freeze the meanings separately; similar labels must not share one storage field accidentally:
 
-- Filter = detector/query.
-- Group = organization only.
-- Set = reusable review configuration referencing Filters.
+- **Filter** = detector/query.
+- **Filter Group** = organization of Filter parts only. Existing presentation Group belongs here.
+- **ReviewSet / Set** = internal reusable review configuration referencing Filters.
+- **見たいもの** = user-facing meaning of a ReviewSet.
+- **見たいもの classification path** = organizational metadata for “見たいもの” such as `ゲーム > X4`. This is distinct from Filter Group and may gain another parent level later.
 
-Implement the minimum Set lifecycle now:
+Implement the minimum “見たいもの” lifecycle now:
 
-- stable Filter IDs; rename/group move must not break Sets;
-- built-in Set vs user Set distinction;
-- deleted/disabled Filter references degrade visibly instead of silently changing meaning;
-- save current review configuration as a Set;
-- duplicate a Set cheaply;
-- applying/editing a Set must not silently overwrite the saved Set.
+- stable Filter IDs; Filter rename/group move must not break “見たいもの”;
+- stable ReviewSet ID; rename/classification move must not change its identity;
+- built-in “見たいもの” vs user-created distinction;
+- deleted/missing Filter references degrade visibly instead of silently changing meaning;
+- save current working review configuration explicitly;
+- duplicate an existing “見たいもの” cheaply and use the copy as a starting point;
+- delete user-created “見たいもの” explicitly; built-ins are not deleted or overwritten;
+- applying/editing must not silently overwrite the saved “見たいもの”.
 
-Do not add a fourth "genre preset" model. Genre presets are built-in Sets.
+Do not add separate “genre preset” runtime semantics. `ゲーム基本`, `配信基本`, etc. are ordinary built-in ReviewSets with classification metadata.
 
 #### C. Work preservation / prevention
 
@@ -83,9 +91,10 @@ For review Sets:
 Implement/retain:
 
 - explicit target capture + target summary;
-- 確認セット selector;
+- “見たいもの” selector with classification path + short automatic Filter summary;
 - enabled Filter chips / quick ON-OFF;
-- add Filter entry;
+- a compact “フィルター n/m” control to expose all Filters belonging to the current “見たいもの” without opening asset management;
+- explicit modified-state indicator when current Filter/Sensitivity choices differ from the saved “見たいもの”;
 - Global Sensitivity;
 - candidate count / raw hit count;
 - Prev / Next / List / Jump;
@@ -143,10 +152,20 @@ These are useful, but do not need to block the first interaction-model freeze.
 
 #### Management refinements
 
+Initial management now includes the lifecycle needed to prevent accumulation of dead assets:
+
+- separate **見たいものを整理** and **フィルターを整理** responsibilities;
+- duplicate / rename / classification move / delete for user-created “見たいもの”;
+- Filter search;
+- Filter usage count / usage destinations;
+- all / used / unused Filter views;
+- explicit delete impact before deleting a Filter referenced by any “見たいもの”.
+
+Still later:
+
 - favorites;
 - hidden Filters / Groups;
 - recently used;
-- "used by these Sets";
 - richer sort/filter views;
 - import/export of Sets/Filters if distribution later needs it.
 
@@ -189,35 +208,43 @@ If it mainly improves **catalog convenience, presentation richness, customizatio
 
 ## Core concepts
 
-Keep three roles distinct:
+Keep internal detector organization and user-facing review organization distinct.
 
 - **Filter** — detector/query that produces candidate hits.
-- **Group** — organizational category only; moving/renaming a Group must not change detection semantics.
-- **Set** — reusable runtime combination of enabled Filters plus user-facing review settings such as Global Sensitivity. Internal name is `Set`; user-facing UI label is **確認セット**.
+- **Filter Group** — organization of Filter parts only. Moving/renaming it must not change detection semantics or ReviewSet identity.
+- **ReviewSet / Set** — internal reusable runtime combination of Filter references/enabled states plus Global Sensitivity and other proven review settings.
+- **見たいもの** — user-facing concept backed by a ReviewSet: “what I want to look for in this video”.
+- **Classification path** — organization of “見たいもの”; initially it may look like Genre, but storage/UI must allow another parent category later.
 
 Short rule:
 
-> Group organizes. Filter detects. Set defines how the user reviews.
-
-Genre presets should not become a fourth concept. Ship them as built-in Sets.
+> 分類は探しやすくする。見たいものは目的を表す。Filterは実際に探す。
 
 Examples:
 
 ```text
-Groups
-- 汎用
-- ゲーム
-- X4
-- 配信
-- 解説
-- 自作
+見たいもの
+ゲーム
+├─ ゲーム基本          (built-in)
+├─ X4                  (user)
+└─ Minecraft           (user)
 
-Built-in Sets
-- ゲーム基本
-- 配信基本
-- 解説・画面収録
-- シーン切替チェック
+動画シリーズ
+├─ シリーズ基本        (built-in)
+└─ 小夜ミコちりつも宇宙記 (user)
 ```
+
+A future extra level remains valid:
+
+```text
+動画
+└─ ゲーム
+   └─ X4
+```
+
+Main Review must not gain another mandatory dropdown merely because this hierarchy becomes deeper.
+
+Built-in basics are ordinary built-in ReviewSets. Do not create a fourth “Preset” object model solely for them.
 
 ## UI surfaces
 
@@ -239,12 +266,19 @@ Primary content:
 Conceptual layout:
 
 ```text
-対象 [ 選択動画を対象に ]  recording_01.mp4 / 1個
+解析対象
+[ 選択動画を対象に ]  recording_01.mp4 / 1個
 
-確認セット [ X4録画チェック ▼ ]   [現在の確認設定を保存]
+見たいもの
+[ ゲーム > X4                         ▼ ] [編集]
+  戦闘開始・MAP切替など5フィルター
 
-有効なフィルター
-[戦闘開始 ×] [暗転 ×] [高活動→静穏 ×] [+追加]
+使うフィルター
+[戦闘開始 ×] [MAP切替 ×] [大きな場面切替 ×]
+[ フィルター 3/5 ▼ ]
+
+● 変更あり
+[この内容で保存] [別名で保存]
 
 検出感度
 少なく拾う ─────●──── 多く拾う
@@ -257,6 +291,22 @@ Conceptual layout:
 ```
 
 Do not expose Pattern weights, primitive feature names, or many per-filter thresholds on this surface.
+
+The “見たいもの” picker should be directly searchable and grouped by classification. Each row should provide recognition instead of requiring memory:
+
+```text
+ゲーム > X4
+戦闘開始・MAP切替など5フィルター
+
+ゲーム > ゲーム基本
+場面切替・暗転・活動変化
+```
+
+Do not require a separate Genre selection before this picker. Classification is visible context, not a mandatory navigation step.
+
+The active Filter chips are the fast path. Their × action means **OFF for the current working state**, never deletion. True Filter deletion exists only in Filter management.
+
+Saving controls should become prominent only when the working state materially differs from the saved “見たいもの”. Avoid presenting save/reload administration as an equal first-step choice before the user has even analyzed a video.
 
 Sensitivity should continue to re-query the existing Feature Index without re-decoding.
 
@@ -287,25 +337,43 @@ Future entry points can share one concept:
 - 既存フィルターを複製
 ```
 
-### 3. Filter Management — organize
+### 3. Management — organize assets, not everyday review
 
-Keep management separate from Main Review.
+Do not combine frequent Filter ON/OFF with rare asset management in one ambiguous “選ぶ・整理” surface.
 
-Initial management scope:
+#### 見たいものを整理
 
-- Group
-- rename
-- duplicate
-- disable/delete
-- search
-- collapse/expand
+Initial scope:
+
+- browse/search by classification path;
+- create;
+- duplicate an existing “見たいもの” as the primary starting route;
+- rename;
+- move to another classification;
+- edit referenced Filter composition;
+- delete user-created items;
+- built-ins: readable/duplicable, but not overwritten or deleted.
+
+#### フィルターを整理
+
+Initial scope:
+
+- Filter Group;
+- rename/presentation organization where identity semantics permit;
+- duplicate user Filter where supported;
+- search;
+- all / used / unused;
+- show usage count and concrete “見たいもの” destinations;
+- delete only through this management surface;
+- before deleting a referenced Filter, show the affected “見たいもの” names instead of a generic confirmation.
+
+Main Review gets a lightweight Filter chooser for the current working state. It does not need to expose Filter asset deletion.
 
 Later only if real use needs them:
 
 - favorites
 - hidden filters/groups
 - recent filters
-- "used by these Sets"
 
 ## Set model
 
@@ -458,21 +526,33 @@ Define Set persistence, broken-reference behavior, and the Draft/working-state p
 
 Fix predictable work-loss paths before broad UI polish: preserve a valid Draft across cancel/error/save failure, separate saved Set from working state, and make unavailable rollback/actions disabled rather than failure-driven.
 
-### UX-2 — existing-feature hands-on
+### UX-2 — first-time cognitive walkthrough + existing-feature hands-on
 
-Implement/prototype the new flow using existing filters first.
+Implement/prototype the new flow using existing Filters first.
 
-Acceptance path:
+Primary first-time path:
 
 ```text
-対象固定
-→ 確認セット選択
-→ Filter追加/削除
-→ Sensitivity変更
-→ 候補理由確認
-→ Prev/Next/List
-→ 現在の確認設定を保存/再選択
+Navigatorを開く
+→ 解析対象が無ければ「選択動画を対象に」が次の一手として見える
+→ 見たいものを直接選ぶ（分類はpicker内で見える）
+→ 選んだ内容のFilter要約が見える
+→ 解析
+→ 候補数と理由が見える
+→ 前/次/一覧で巡回
+→ Filter ON/OFFやSensitivityをその場で調整
+→ 変更ありを認識
+→ 必要なら保存 / 別名保存
 ```
+
+Cognitive walkthrough questions for every step:
+
+1. 初見ユーザーは「次に何をしたいか」を自然に持てるか。
+2. その目的に対応する操作が画面上で見つかるか。
+3. ラベルから押した結果を予測できるか。
+4. 操作後、成功・変更・未保存状態が画面から分かるか。
+
+The Main Review should pass this path without requiring README, tooltip discovery, or a separate onboarding wizard.
 
 ### UX-2.5 — high-frequency review path
 
@@ -518,6 +598,62 @@ Existing roadmap work is **not cancelled**.
 - Existing W1-R, FeaturePack, TransitionIndex, FilterStore and revision evidence remain reusable.
 
 The UI/UX pass should wrap and clarify those capabilities, not rewrite their proven cores.
+
+## Cognitive walkthrough findings — current v0.4.2 UI
+
+The current implementation is functional but exposes several concepts too early. These are redesign targets, not regressions in the verified persistence/core behavior.
+
+| Current surface | First-time risk | Intended correction |
+|---|---|---|
+| `確認セット` | user must infer what a Set means | user-facing `見たいもの`; keep ReviewSet internal |
+| separate Set selector + save/reload Expander | administration appears before the main task is learned | direct “見たいもの” selection; save actions become contextual when modified |
+| `フィルターを選ぶ・整理` | frequent ON/OFF and rare destructive management are mixed | lightweight current Filter chooser + separate `フィルターを整理` |
+| Filter chips only show active Filters | good for fast OFF, weak for discovering available OFF Filters | add `フィルター n/m` disclosure for current “見たいもの” |
+| classification not visible in Set selector | same-named items become hard to identify as catalog grows | picker rows show breadcrumb path + automatic Filter summary |
+| no explicit modified-state marker | user must infer whether current choices differ from saved state | visible `変更あり`, save / save-as actions nearby |
+| empty first-run surface depends on generic controls | user may not know first step or why defaults exist | contextual empty states and built-in basics as starter content |
+| asset delete semantics absent | dead Filters / old “見たいもの” accumulate | dedicated management with used/unused and usage-impact confirmation |
+
+### First-run empty states
+
+Before a target is captured, the interface should teach only the next action:
+
+```text
+まだ確認する動画がありません
+
+YMM4で確認したい動画を選択してください。
+[ 選択動画を対象に ]
+```
+
+After target capture, if no user choice exists yet, starter content can teach the mental model:
+
+```text
+何を探しますか？
+
+ゲーム > ゲーム基本
+場面切替・暗転・活動変化
+
+配信 > 配信基本
+場面切替・音量変化・静かな区間
+
+解説・画面収録 > 基本
+場面切替・静止・画面構成変化
+
+[すべての「見たいもの」を見る]
+```
+
+Do not block use with a tutorial carousel. The live interface and starter “見たいもの” should explain themselves.
+
+### Explicitly avoid for the first interaction freeze
+
+- mandatory Genre dropdown before every “見たいもの” selection;
+- automatic genre classification;
+- a new public “Preset” concept beside “見たいもの”;
+- exposing internal State/Generic/Learned Filter types in normal Review;
+- global threshold/rule-builder panels;
+- favorites/recent/hidden systems before catalog scale proves they are needed;
+- destructive actions on the Main Review surface;
+- icon-only primary actions whose meaning must be memorized.
 
 ## Final intent
 
