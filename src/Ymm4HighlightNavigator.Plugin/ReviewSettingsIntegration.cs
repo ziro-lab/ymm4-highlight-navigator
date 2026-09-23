@@ -99,7 +99,7 @@ public sealed partial class NavigatorModel
     public ICommand SaveFilterPresentationCommand => new RelayCommand(() => _ = SaveFilterPresentationAsync(),
         () => !disposed && CanConfigure && settingsReady && ManagedFilter != null && !string.IsNullOrWhiteSpace(DisplayGroup) && !string.IsNullOrWhiteSpace(DisplayName));
 
-    public string FilterSearch { get => filterSearch; set { filterSearch = value; Changed(); filterLibrary?.Refresh(); filterManagementLibrary?.Refresh(); } }
+    public string FilterSearch { get => filterSearch; set { filterSearch = value; Changed(); filterLibrary?.Refresh(); RefreshVisibleFilterManagementRows(); } }
     public ICollectionView FilterLibrary
     {
         get
